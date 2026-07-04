@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>G-code Studio — Bambu Lab A1 mini / eSun PLA+</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#2a2f3a;
+    --text:#e6e9ef; --muted:#8b93a3; --accent:#00c2a8; --accent2:#7aa2ff;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans JP",sans-serif;font-size:14px}
+  a{color:var(--accent2)}
+  header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);
+    border-bottom:1px solid var(--line);flex-wrap:wrap}
+  header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}
+  header .sub{color:var(--muted);font-size:12px}
+  .badge{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:11.5px;color:var(--muted)}
+  .badge b{color:var(--accent)}
+  .grow{flex:1}
+  button,select,input,textarea{font-family:inherit}
+  .btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;
+    padding:7px 12px;cursor:pointer;font-size:13px;transition:.12s}
+  .btn:hover{border-color:var(--accent);color:#fff}
+  .btn.primary{background:var(--accent);color:#04120f;border-color:var(--accent);font-weight:650}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.sm{padding:5px 9px;font-size:12px}
+  main{display:grid;grid-template-columns:300px 1fr 1fr;height:calc(100vh - 53px)}
+  @media(max-width:1100px){main{grid-template-columns:1fr;height:auto}}
+  .col{overflow:auto;border-right:1px solid var(--line);height:100%}
+  @media(max-width:1100px){.col{height:auto;border-right:none;border-bottom:1px solid var(--line)}
+    #viewerCol{height:60vh}}
+  .section{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .section h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 10px}
+  .field{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:7px 0}
+  .field label{color:var(--muted);font-size:12.5px}
+  .field input{background:#0c0e13;color:var(--text);border:1px solid var(--line);
+    border-radius:6px;padding:5px 8px;width:96px;text-align:right;font-size:12.5px}
+  .row2{display:flex;gap:8px;flex-wrap:wrap}
+  .hint{color:var(--muted);font-size:11.5px;line-height:1.5;margin-top:8px}
+  #viewerCol{position:relative;background:radial-gradient(ellipse at 50% 30%,#12151c,#0b0d11 70%);overflow:hidden}
+  #canvas{width:100%;height:100%;display:block;cursor:grab}
+  #canvas:active{cursor:grabbing}
+  .overlay{position:absolute;left:0;right:0;pointer-events:none}
+  .vtop{top:10px;display:flex;gap:8px;padding:0 12px;flex-wrap:wrap}
+  .chip{pointer-events:auto;background:rgba(20,24,32,.85);border:1px solid var(--line);border-radius:8px;
+    padding:6px 10px;font-size:12px;color:var(--muted);backdrop-filter:blur(4px)}
+  .chip b{color:var(--text)}
+  .vctrl{bottom:12px;padding:0 14px}
+  .vctrl .bar{pointer-events:auto;background:rgba(18,21,28,.9);border:1px solid var(--line);
+    border-radius:10px;padding:10px 12px;backdrop-filter:blur(4px)}
+  .slider-row{display:flex;align-items:center;gap:10px}
+  .slider-row input[type=range]{flex:1;accent-color:var(--accent)}
+  .slider-row span{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;min-width:118px;text-align:right}
+  .toggle{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;cursor:pointer;pointer-events:auto}
+  #editorCol{display:flex;flex-direction:column;height:100%;min-height:340px;border-right:none}
+  .etoolbar{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:var(--panel)}
+  .edit-wrap{position:relative;flex:1;overflow:hidden;background:#0c0e13;display:grid;grid-template-columns:auto 1fr}
+  #gutter{overflow:hidden;padding:10px 8px;text-align:right;color:#4b5364;font-family:var(--mono);font-size:12.5px;
+    line-height:1.55;user-select:none;background:#0a0c10;border-right:1px solid var(--line);white-space:pre}
+  #editor{border:0;outline:0;resize:none;background:transparent;color:#d7dce6;
+    font-family:var(--mono);font-size:12.5px;line-height:1.55;padding:10px 12px;white-space:pre;
+    width:100%;height:100%;tab-size:2;overflow:auto}
+  .estatus{display:flex;gap:16px;padding:6px 12px;border-top:1px solid var(--line);color:var(--muted);
+    font-size:11.5px;background:var(--panel);flex-wrap:wrap}
+  .estatus b{color:var(--text)}
+  dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;max-width:540px;padding:0}
+  dialog::backdrop{background:rgba(0,0,0,.55)}
+  .dlg-h{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:650}
+  .dlg-b{padding:16px;line-height:1.6}
+  .dlg-f{padding:12px 16px;border-top:1px solid var(--line);text-align:right}
+  code{font-family:var(--mono);background:#0c0e13;padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧩 G-code Studio</h1>
+  <span class="badge">Printer <b>Bambu Lab A1 mini</b></span>
+  <span class="badge">Filament <b>eSun PLA+</b></span>
+  <span class="sub">G-codeを直接いじれるスライサー・エディタ（完全オフライン動作）</span>
+  <div class="grow"></div>
+  <button class="btn sm" id="btnHelp">使い方</button>
+  <label class="btn sm" for="fileInput">📂 .gcode 読込</label>
+  <input type="file" id="fileInput" accept=".gcode,.gco,.g,.txt" style="display:none">
+  <button class="btn sm" id="btnSample">サンプル生成</button>
+  <button class="btn primary sm" id="btnDownload">⬇ ダウンロード</button>
+</header>
+
+<main>
+  <!-- 左: プロファイル -->
+  <div class="col" id="profileCol">
+    <div class="section">
+      <h2>プリンタ / A1 mini</h2>
+      <div class="field"><label>ベッド X (mm)</label><input id="bedX" type="number" value="180"></div>
+      <div class="field"><label>ベッド Y (mm)</label><input id="bedY" type="number" value="180"></div>
+      <div class="field"><label>高さ Z (mm)</label><input id="bedZ" type="number" value="180"></div>
+      <div class="field"><label>ノズル径 (mm)</label><input id="nozzle" type="number" step="0.1" value="0.4"></div>
+    </div>
+    <div class="section">
+      <h2>フィラメント / eSun PLA+</h2>
+      <div class="field"><label>ノズル温度 (℃)</label><input id="tNozzle" type="number" value="220"></div>
+      <div class="field"><label>1層目ノズル (℃)</label><input id="tNozzle1" type="number" value="225"></div>
+      <div class="field"><label>ベッド温度 (℃)</label><input id="tBed" type="number" value="60"></div>
+      <div class="field"><label>1層目ベッド (℃)</label><input id="tBed1" type="number" value="60"></div>
+      <div class="field"><label>フロー比</label><input id="flow" type="number" step="0.01" value="0.98"></div>
+      <div class="field"><label>最大体積速度 (mm³/s)</label><input id="mvs" type="number" value="12"></div>
+      <div class="field"><label>フィラメント径 (mm)</label><input id="fdia" type="number" step="0.01" value="1.75"></div>
+      <p class="hint">eSun PLA+ は通常PLAより粘度が高めなので温度を少し上げると層間接着が安定します。使用前の乾燥を推奨。</p>
+    </div>
+    <div class="section">
+      <h2>プリント設定</h2>
+      <div class="field"><label>層厚 (mm)</label><input id="layerH" type="number" step="0.02" value="0.20"></div>
+      <div class="field"><label>1層目層厚 (mm)</label><input id="layerH1" type="number" step="0.02" value="0.24"></div>
+      <div class="field"><label>プリント速度 (mm/s)</label><input id="pspeed" type="number" value="150"></div>
+      <div class="field"><label>1層目速度 (mm/s)</label><input id="pspeed1" type="number" value="50"></div>
+      <div class="field"><label>移動速度 (mm/s)</label><input id="tspeed" type="number" value="250"></div>
+      <div class="field"><label>ファン (%)</label><input id="fan" type="number" value="100"></div>
+      <div class="field"><label>リトラクト (mm)</label><input id="retract" type="number" step="0.1" value="0.8"></div>
+    </div>
+    <div class="section">
+      <h2>スタート/エンド G-code</h2>
+      <div class="row2">
+        <button class="btn sm" id="btnStart">▶ スタート挿入</button>
+        <button class="btn sm" id="btnEnd">■ エンド挿入</button>
+      </div>
+      <p class="hint">現在のプロファイル値からA1 mini向け初期化シーケンスを生成し挿入します。純正の完全マクロは長大なため、これは編集前提の実用テンプレートです。実機投入前に必ず確認を。</p>
+    </div>
+  </div>
+
+  <!-- 中央: ビューア -->
+  <div class="col" id="viewerCol">
+    <canvas id="canvas"></canvas>
+    <div class="overlay vtop">
+      <div class="chip" id="statLayers">レイヤー: —</div>
+      <div class="chip" id="statSize">サイズ: —</div>
+      <div class="chip" id="statFil">フィラメント: —</div>
+      <div class="chip" id="statTime">推定: —</div>
+    </div>
+    <div class="overlay vctrl">
+      <div class="bar">
+        <div class="slider-row">
+          <input type="range" id="layerSlider" min="0" max="0" value="0">
+          <span id="layerLabel">レイヤー 0 / 0</span>
+        </div>
+        <div class="slider-row" style="margin-top:8px">
+          <label class="toggle"><input type="checkbox" id="showTravel"> 移動(travel)</label>
+          <label class="toggle"><input type="checkbox" id="colorSpeed"> 速度で色分け</label>
+          <label class="toggle"><input type="checkbox" id="singleLayer"> 単層のみ</label>
+          <div class="grow"></div>
+          <button class="btn sm" id="btnFit">全体</button>
+          <button class="btn sm" id="btnTop">真上</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右: エディタ -->
+  <div class="col" id="editorCol">
+    <div class="etoolbar">
+      <button class="btn sm" data-snip="pause">⏸ 一時停止</button>
+      <button class="btn sm" data-snip="mtemp">🌡 温度変更</button>
+      <button class="btn sm" data-snip="fan">💨 ファン</button>
+      <button class="btn sm" data-snip="color">🎨 色替え(M600)</button>
+      <button class="btn sm" data-snip="zhop">↕ Zホップ</button>
+      <div class="grow"></div>
+      <button class="btn sm" id="btnFormat">3D再描画</button>
+    </div>
+    <div class="edit-wrap">
+      <div id="gutter">1</div>
+      <textarea id="editor" spellcheck="false" wrap="off" placeholder="; ここにG-codeを入力・貼り付け・読込"></textarea>
+    </div>
+    <div class="estatus">
+      <span>行 <b id="stLine">1</b></span>
+      <span>総行数 <b id="stLines">0</b></span>
+      <span>選択中 <b id="stCmd">—</b></span>
+      <span class="grow"></span>
+      <span>編集後は自動で3D再描画</span>
+    </div>
+  </div>
+</main>
+
+<dialog id="helpDlg">
+  <div class="dlg-h">使い方</div>
+  <div class="dlg-b">
+    <p><b>これは何？</b><br>Bambu Lab A1 mini + eSun PLA+ 向けにチューニング済みプロファイルを内蔵した、
+    ブラウザ完結・外部通信なしのG-codeエディタ＆ツールパスビューアです。既存の <code>.gcode</code> を
+    読み込み、レイヤー単位で確認しながら<strong>直接編集</strong>し、そのまま書き出せます。</p>
+    <p><b>基本の流れ</b><br>
+    ① 右上「📂読込」で <code>.gcode</code> を開く（または「サンプル生成」）<br>
+    ② 中央3Dで確認：ドラッグで回転 / ホイールでズーム / スライダーで層送り<br>
+    ③ 右エディタで直いじり → 自動で3D再描画<br>
+    ④「⬇ダウンロード」で保存 → SDカード or Bambu Studio へ</p>
+    <p><b>便利機能</b><br>
+    ・左の値を変えて「スタート挿入」でA1 mini初期化ブロックを生成<br>
+    ・スニペットで一時停止 / 色替え(M600) / 温度変更をカーソル位置に挿入<br>
+    ・「速度で色分け」でフィード速度を可視化、「単層のみ」で特定層だけ表示</p>
+    <p class="hint">注: 純正Bambuファーム向けの完全マクロ展開は行いません。生成コードは編集前提の実用テンプレートです。実機投入前に必ず内容を確認してください。</p>
+  </div>
+  <div class="dlg-f"><button class="btn primary sm" id="btnCloseHelp">閉じる</button></div>
+</dialog>
+
+<script>
+const $=id=>document.getElementById(id);
+const P={};
+['bedX','bedY','bedZ','nozzle','tNozzle','tNozzle1','tBed','tBed1','flow','mvs','fdia',
+ 'layerH','layerH1','pspeed','pspeed1','tspeed','fan','retract'].forEach(k=>P[k]=$(k));
+const num=k=>parseFloat(P[k].value)||0;
+
+/* ============ G-code parse ============ */
+let model={layers:[],min:{x:1e9,y:1e9,z:1e9},max:{x:-1e9,y:-1e9,z:-1e9},eTotal:0,timeSec:0,spMin:600,spMax:9000};
+
+function parseGcode(text){
+  const lines=text.split(/\r?\n/);
+  let x=0,y=0,z=0,e=0,f=0,absPos=true,absE=true,curZ=0,lastPrintZ=null;
+  const layerMap=new Map(), layerZs=[];
+  const mn={x:1e9,y:1e9,z:1e9}, mx={x:-1e9,y:-1e9,z:-1e9};
+  let eTotal=0,timeSec=0,spMin=1e9,spMax=-1e9;
+  const layerFor=zz=>{ if(!layerMap.has(zz)){layerMap.set(zz,{z:zz,segs:[],travels:[]});layerZs.push(zz);} return layerMap.get(zz); };
+  for(const raw of lines){
+    const line=raw.replace(/;.*$/,'').trim(); if(!line)continue;
+    const parts=line.split(/\s+/), cmd=parts[0].toUpperCase();
+    if(cmd==='G90'){absPos=true;continue;} if(cmd==='G91'){absPos=false;continue;}
+    if(cmd==='M82'){absE=true;continue;}  if(cmd==='M83'){absE=false;continue;}
+    if(cmd==='G92'){for(const p of parts){const a=p[0].toUpperCase(),v=parseFloat(p.slice(1));if(isNaN(v))continue;
+      if(a==='X')x=v;else if(a==='Y')y=v;else if(a==='Z')z=v;else if(a==='E')e=v;}continue;}
+    if(cmd==='G28'){x=0;y=0;z=0;continue;}
+    if(cmd!=='G0'&&cmd!=='G1')continue;
+    let nx=x,ny=y,nz=z,ne=e,nf=f,hasE=false;
+    for(let i=1;i<parts.length;i++){const p=parts[i],a=p[0].toUpperCase(),v=parseFloat(p.slice(1));if(isNaN(v))continue;
+      if(a==='X')nx=absPos?v:x+v;else if(a==='Y')ny=absPos?v:y+v;else if(a==='Z')nz=absPos?v:z+v;
+      else if(a==='E'){ne=absE?v:e+v;hasE=true;}else if(a==='F')nf=v;}
+    const de=ne-e, dist=Math.hypot(nx-x,ny-y,nz-z);
+    if(nf>0&&dist>0)timeSec+=dist/(nf/60);
+    if(hasE&&de>1e-5&&dist>1e-4){
+      if(nz!==lastPrintZ){curZ=nz;lastPrintZ=nz;}
+      layerFor(curZ).segs.push(x,y,z,nx,ny,nz,nf);
+      eTotal+=de; spMin=Math.min(spMin,nf); spMax=Math.max(spMax,nf);
+      mn.x=Math.min(mn.x,x,nx);mn.y=Math.min(mn.y,y,ny);mn.z=Math.min(mn.z,z,nz);
+      mx.x=Math.max(mx.x,x,nx);mx.y=Math.max(mx.y,y,ny);mx.z=Math.max(mx.z,z,nz);
+    }else if(dist>1e-4){ layerFor(curZ).travels.push(x,y,z,nx,ny,nz); }
+    x=nx;y=ny;z=nz;e=ne;f=nf;
+  }
+  layerZs.sort((a,b)=>a-b);
+  model={layers:layerZs.map(zz=>layerMap.get(zz)),min:mn,max:mx,eTotal,timeSec,
+    spMin:spMin<spMax?spMin:600, spMax:spMax>spMin?spMax:9000};
+  const sl=$('layerSlider'); sl.max=Math.max(0,model.layers.length-1); sl.value=sl.max;
+  updateStats(); draw();
+}
+
+function fmt(n,d=0){return (isFinite(n)?n:0).toLocaleString('ja-JP',{maximumFractionDigits:d});}
+function updateStats(){
+  const ok=model.layers.length>0;
+  const sx=model.max.x-model.min.x, sy=model.max.y-model.min.y, sz=model.max.z-model.min.z;
+  $('statLayers').innerHTML=`レイヤー: <b>${ok?model.layers.length:'—'}</b>`;
+  $('statSize').innerHTML=ok?`サイズ: <b>${fmt(sx,1)}×${fmt(sy,1)}×${fmt(sz,1)}</b> mm`:'サイズ: —';
+  const dia=num('fdia'),area=Math.PI*(dia/2)**2, vol=model.eTotal*area, g=vol/1000*1.24;
+  $('statFil').innerHTML=ok?`フィラメント: <b>${fmt(model.eTotal/1000,2)} m</b> / ${fmt(g,1)} g`:'フィラメント: —';
+  const min=model.timeSec/60;
+  $('statTime').innerHTML=ok?`推定: <b>${min>=60?fmt(min/60,1)+' h':fmt(min,0)+' min'}</b>`:'推定: —';
+}
+
+/* ============ Canvas 3D-ish renderer ============ */
+const cv=$('canvas'), ctx=cv.getContext('2d');
+const view={az:-0.6, el:1.05, scale:2.4, panX:0, panY:0, auto:true};
+function sizeCanvas(){
+  const r=cv.getBoundingClientRect(), dpr=Math.min(devicePixelRatio,2);
+  cv.width=Math.max(1,r.width*dpr); cv.height=Math.max(1,r.height*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0); return {w:r.width,h:r.height};
+}
+function project(x,y,z,cx,cy,cz,ox,oy,s){
+  const px=x-cx, py=y-cy, pz=z-cz;
+  const ca=Math.cos(view.az), sa=Math.sin(view.az);
+  const x1=px*ca-py*sa, y1=px*sa+py*ca;
+  const se=Math.sin(view.el), ce=Math.cos(view.el);
+  return [ ox + x1*s, oy - (y1*se + pz*ce)*s ];
+}
+function speedColor(f){
+  const t=Math.max(0,Math.min(1,(f-model.spMin)/Math.max(1,model.spMax-model.spMin)));
+  const h=210-150*t; return `hsl(${h},70%,58%)`;
+}
+function draw(){
+  const {w,h}=sizeCanvas(); ctx.clearRect(0,0,w,h);
+  const bx=num('bedX'), by=num('bedY');
+  const cx=bx/2, cy=by/2, cz=(model.layers.length?(model.min.z+model.max.z)/2:0);
+  if(view.auto){
+    const span=Math.max(bx,by,(model.max.z-model.min.z)||1);
+    view.scale=Math.min(w,h)/(span*1.7); view.panX=0; view.panY= (view.el>1.4?0:-h*0.06);
+  }
+  const ox=w/2+view.panX, oy=h/2+view.panY, s=view.scale;
+  const pj=(x,y,z)=>project(x,y,z,cx,cy,cz,ox,oy,s);
+  // bed grid
+  ctx.lineWidth=1;
+  ctx.strokeStyle='#232833';
+  const step=20;
+  for(let gx=0;gx<=bx+0.1;gx+=step){const a=pj(gx,0,0),b=pj(gx,by,0);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+  for(let gy=0;gy<=by+0.1;gy+=step){const a=pj(0,gy,0),b=pj(bx,gy,0);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+  // bed border + origin
+  ctx.strokeStyle='#3a4152'; ctx.lineWidth=1.5;
+  const c=[pj(0,0,0),pj(bx,0,0),pj(bx,by,0),pj(0,by,0)];
+  ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();ctx.stroke();
+  const o=pj(0,0,0); ctx.fillStyle='#00c2a8'; ctx.beginPath();ctx.arc(o[0],o[1],3,0,7);ctx.fill();
+  // toolpaths
+  const top=parseInt($('layerSlider').value)||0;
+  const single=$('singleLayer').checked, showT=$('showTravel').checked, bySpeed=$('colorSpeed').checked;
+  const lo=single?top:0;
+  if(showT){
+    ctx.strokeStyle='rgba(90,105,130,.5)'; ctx.lineWidth=0.6;
+    for(let li=lo;li<=top&&li<model.layers.length;li++){const T=model.layers[li].travels;ctx.beginPath();
+      for(let i=0;i<T.length;i+=6){const a=pj(T[i],T[i+1],T[i+2]),b=pj(T[i+3],T[i+4],T[i+5]);ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}
+  }
+  ctx.lineWidth=1.1; ctx.lineCap='round';
+  for(let li=lo;li<=top&&li<model.layers.length;li++){
+    const S=model.layers[li].segs;
+    if(bySpeed){
+      for(let i=0;i<S.length;i+=7){const a=pj(S[i],S[i+1],S[i+2]),b=pj(S[i+3],S[i+4],S[i+5]);
+        ctx.strokeStyle=speedColor(S[i+6]);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+    }else{
+      const isTop=(li===top);
+      ctx.strokeStyle=isTop?'#00e6c6':`rgba(0,194,168,${single?0.95:Math.max(0.18,0.18+0.6*li/Math.max(1,top))})`;
+      ctx.beginPath();
+      for(let i=0;i<S.length;i+=7){const a=pj(S[i],S[i+1],S[i+2]),b=pj(S[i+3],S[i+4],S[i+5]);ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
+      ctx.stroke();
+    }
+  }
+  $('layerLabel').textContent=`レイヤー ${model.layers.length?top+1:0} / ${model.layers.length}`;
+}
+// interaction
+let drag=null;
+cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2};view.auto=false;cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',e=>{ if(!drag)return; const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX;drag.y=e.clientY;
+  if(drag.pan){view.panX+=dx;view.panY+=dy;} else {view.az+=dx*0.01; view.el=Math.max(0.05,Math.min(1.55,view.el+dy*0.01));} draw();});
+cv.addEventListener('pointerup',()=>drag=null);
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('wheel',e=>{e.preventDefault();view.auto=false;view.scale*=(e.deltaY<0?1.12:0.89);draw();},{passive:false});
+new ResizeObserver(()=>draw()).observe($('viewerCol'));
+
+/* ============ Editor ============ */
+const editor=$('editor'), gutter=$('gutter');
+let parseTimer=null;
+function syncGutter(){const n=editor.value.split('\n').length;let s='';for(let i=1;i<=n;i++)s+=i+'\n';gutter.textContent=s;$('stLines').textContent=n;}
+function onEdit(){syncGutter();clearTimeout(parseTimer);parseTimer=setTimeout(()=>parseGcode(editor.value),350);}
+editor.addEventListener('input',onEdit);
+editor.addEventListener('scroll',()=>{gutter.scrollTop=editor.scrollTop;});
+function updateCursor(){const pos=editor.selectionStart,before=editor.value.slice(0,pos),ln=before.split('\n').length;
+  $('stLine').textContent=ln; const cur=(editor.value.split('\n')[ln-1]||'').trim();
+  const m=cur.match(/^([GM]\d+)/i); $('stCmd').textContent=m?m[1].toUpperCase():'—';}
+editor.addEventListener('keyup',updateCursor); editor.addEventListener('click',updateCursor);
+function insertAtCursor(t){const s=editor.selectionStart,e=editor.selectionEnd;
+  editor.value=editor.value.slice(0,s)+t+editor.value.slice(e);editor.selectionStart=editor.selectionEnd=s+t.length;editor.focus();onEdit();}
+
+/* ============ Start / End ============ */
+function startGcode(){const n=num('tNozzle1'),b=num('tBed1'),fan=num('fan');
+  return `; ==== START (Bambu Lab A1 mini / eSun PLA+) ====
+M104 S${n} ; ノズル予熱
+M140 S${b} ; ベッド加熱
+M190 S${b} ; ベッド目標到達待ち
+G28 ; ホーミング(オートレベリング)
+G29 ; メッシュベッドレベリング
+M109 S${n} ; ノズル目標到達待ち
+G90 ; 絶対座標
+M83 ; エクストルーダ相対
+G1 Z5 F3000
+; --- プライムライン ---
+G1 X5 Y5 Z${num('layerH1').toFixed(2)} F3000
+G1 X120 Y5 E12 F1200
+G1 X120 Y5.6 F3000
+G1 X5 Y5.6 E12 F1200
+G92 E0
+M106 S${Math.round(fan*2.55)} ; パーツファン ${fan}%
+; ==== START END ====
+`;}
+function endGcode(){return `; ==== END ====
+M104 S0 ; ノズルOFF
+M140 S0 ; ベッドOFF
+M107 ; ファンOFF
+G91 ; 相対
+G1 E-2 F1800 ; リトラクト
+G1 Z10 F3000 ; Zリフト
+G90 ; 絶対
+G1 X0 Y180 F6000 ; ベッド前出し
+M84 ; モータOFF
+; ==== END DONE ====
+`;}
+
+/* ============ Snippets ============ */
+const snippets={
+  pause:()=>`; --- 一時停止 ---\nM400\nM25\n`,
+  mtemp:()=>`M104 S${num('tNozzle')} ; ノズル温度変更\n`,
+  fan:()=>`M106 S${Math.round(num('fan')*2.55)} ; ファン ${num('fan')}%\n`,
+  color:()=>`; --- フィラメント交換 ---\nM600\n`,
+  zhop:()=>`G91\nG1 Z0.6 F3000 ; Zホップ\nG90\n`
+};
+document.querySelectorAll('[data-snip]').forEach(b=>b.onclick=()=>insertAtCursor(snippets[b.dataset.snip]()));
+
+/* ============ Sample ============ */
+function sampleGcode(){
+  const lh=num('layerH'),lh1=num('layerH1'),N=25,cx=90,cy=90,R=25;
+  let g=startGcode()+'M83\n';
+  for(let l=0;l<N;l++){
+    const z=(lh1+l*lh).toFixed(3), r=R-l*0.05;
+    g+=`; LAYER ${l} Z${z}\nG1 Z${z} F1200\n`;
+    g+=`G1 X${(cx+r).toFixed(2)} Y${cy.toFixed(2)} F${num('tspeed')*60}\n`;
+    for(let i=1;i<=60;i++){const a=i/60*Math.PI*2,px=cx+r*Math.cos(a),py=cy+r*Math.sin(a),el=(2*Math.PI*r/60)*0.045;
+      g+=`G1 X${px.toFixed(2)} Y${py.toFixed(2)} E${el.toFixed(4)} F${(l===0?num('pspeed1'):num('pspeed'))*60}\n`;}
+  }
+  return g+endGcode();
+}
+
+/* ============ Wire up ============ */
+$('layerSlider').addEventListener('input',draw);
+$('showTravel').addEventListener('change',draw);
+$('colorSpeed').addEventListener('change',draw);
+$('singleLayer').addEventListener('change',draw);
+$('btnFit').onclick=()=>{view.auto=true;draw();};
+$('btnTop').onclick=()=>{view.auto=true;view.az=-Math.PI/2;view.el=1.55;draw();};
+['bedX','bedY','bedZ'].forEach(k=>P[k].addEventListener('change',()=>{view.auto=true;draw();}));
+$('btnStart').onclick=()=>{ if(editor.value.trim()===''||editor.value.trim().startsWith(';'))editor.value=startGcode();else insertAtCursor(startGcode()); onEdit();};
+$('btnEnd').onclick=()=>{editor.value+=(editor.value.endsWith('\n')?'':'\n')+endGcode();onEdit();};
+$('btnFormat').onclick=()=>parseGcode(editor.value);
+$('btnSample').onclick=()=>{editor.value=sampleGcode();view.auto=true;onEdit();};
+$('btnDownload').onclick=()=>{const blob=new Blob([editor.value],{type:'text/plain'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='A1mini_eSunPLAplus.gcode';a.click();URL.revokeObjectURL(a.href);};
+$('fileInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=()=>{editor.value=r.result;view.auto=true;onEdit();};r.readAsText(f);});
+$('btnHelp').onclick=()=>$('helpDlg').showModal();
+$('btnCloseHelp').onclick=()=>$('helpDlg').close();
+
+editor.value='; G-code Studio — Bambu Lab A1 mini / eSun PLA+\n; 「サンプル生成」または「📂読込」で開始。左でプロファイル調整、右で直接編集できます。\n';
+syncGutter(); draw();
+</script>
+</body>
+</html>
