@@ -248,7 +248,7 @@
     読み込み、レイヤー単位で確認しながら<strong>直接編集</strong>し、そのまま書き出せます。</p>
     <p><b>基本の流れ</b><br>
     ① 右上「📂読込」で <code>.gcode</code> を開く（または「サンプル生成」）<br>
-    ② 中央3Dで確認：ドラッグで回転 / ホイールでズーム / スライダーで層送り<br>
+    ② 中央3Dで確認：ドラッグで回転 / ズーム（PC=ホイール, スマホ=2本指ピンチ）/ スライダーで層送り<br>
     ③ 右エディタで直いじり → 自動で3D再描画<br>
     ④「⬇ダウンロード」で保存 → SDカード or Bambu Studio へ</p>
     <p><b>プリセットで“パターン”を作る</b><br>
@@ -403,12 +403,33 @@ function draw(){
   ctx.globalAlpha=1;
   $('layerLabel').textContent=`レイヤー ${model.layers.length?top+1:0} / ${model.layers.length}`;
 }
-// interaction
-let drag=null;
-cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2};view.auto=false;cv.setPointerCapture(e.pointerId);});
-cv.addEventListener('pointermove',e=>{ if(!drag)return; const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX;drag.y=e.clientY;
-  if(drag.pan){view.panX+=dx;view.panY+=dy;} else {view.az+=dx*0.01; view.el=Math.max(0.05,Math.min(1.55,view.el+dy*0.01));} draw();});
-cv.addEventListener('pointerup',()=>drag=null);
+// interaction: 1本指/マウスドラッグ=回転、Shift or 右ドラッグ=パン、
+//              2本指ピンチ=拡大縮小(スマホ)、ホイール=拡大縮小(PC)
+const pointers=new Map();
+let pinchPrev=0, pinchMid=null;
+const pinchDist=()=>{const p=[...pointers.values()]; return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);};
+const pinchMidpoint=()=>{const p=[...pointers.values()]; return {x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2};};
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId); view.auto=false;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===2){pinchPrev=pinchDist();pinchMid=pinchMidpoint();}
+});
+cv.addEventListener('pointermove',e=>{
+  const p=pointers.get(e.pointerId); if(!p)return;
+  const px=p.x, py=p.y; p.x=e.clientX; p.y=e.clientY;
+  if(pointers.size>=2){                       // 2本指: ピンチズーム + 中心移動でパン
+    const d=pinchDist(); if(pinchPrev>0) view.scale*=d/pinchPrev; pinchPrev=d;
+    const m=pinchMidpoint(); if(pinchMid){view.panX+=m.x-pinchMid.x; view.panY+=m.y-pinchMid.y;} pinchMid=m;
+    draw(); return;
+  }
+  const dx=e.clientX-px, dy=e.clientY-py;
+  if(e.shiftKey || e.buttons===2){view.panX+=dx;view.panY+=dy;}
+  else {view.az+=dx*0.01; view.el=Math.max(0.05,Math.min(1.55,view.el+dy*0.01));}
+  draw();
+});
+function endPtr(e){pointers.delete(e.pointerId); if(pointers.size<2){pinchPrev=0;pinchMid=null;}}
+cv.addEventListener('pointerup',endPtr);
+cv.addEventListener('pointercancel',endPtr);
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('wheel',e=>{e.preventDefault();view.auto=false;view.scale*=(e.deltaY<0?1.12:0.89);draw();},{passive:false});
 new ResizeObserver(()=>draw()).observe($('viewerCol'));
