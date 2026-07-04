@@ -71,6 +71,10 @@
   .field input{background:var(--bg);color:var(--text);border:1px solid var(--line);
     border-radius:6px;padding:5px 8px;width:96px;text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums}
   .field input:focus{outline:none;border-color:var(--focus)}
+  .field select{background:var(--bg);color:var(--text);border:1px solid var(--line);
+    border-radius:6px;padding:5px 8px;font-size:12.5px;max-width:150px}
+  .field select:focus{outline:none;border-color:var(--focus)}
+  .btn.block{width:100%;justify-content:center;margin-top:4px}
   .row2{display:flex;gap:8px;flex-wrap:wrap}
   .hint{color:var(--muted);font-size:11.5px;line-height:1.5;margin-top:8px}
   #viewerCol{position:relative;background:var(--bg);overflow:hidden}
@@ -134,6 +138,24 @@
       <div class="field"><label>ベッド Y (mm)</label><input id="bedY" type="number" value="180"></div>
       <div class="field"><label>高さ Z (mm)</label><input id="bedZ" type="number" value="180"></div>
       <div class="field"><label>ノズル径 (mm)</label><input id="nozzle" type="number" step="0.1" value="0.4"></div>
+    </div>
+    <div class="section">
+      <h2>プリセット / パターン</h2>
+      <div class="field"><label>種類</label>
+        <select id="preset">
+          <option value="wavy">波打つ壁（花瓶）</option>
+          <option value="spiral">らせん円柱（花瓶）</option>
+          <option value="circle">円柱（積層）</option>
+          <option value="square">角柱（積層）</option>
+          <option value="uwiggle">U字ウィグル</option>
+        </select>
+      </div>
+      <div class="field"><label>直径 / 辺 (mm)</label><input id="pDia" type="number" value="30"></div>
+      <div class="field"><label>高さ (mm)</label><input id="pH" type="number" value="12"></div>
+      <div class="field"><label>波の数</label><input id="pWaves" type="number" value="8"></div>
+      <div class="field"><label>波の高さ (mm)</label><input id="pAmp" type="number" step="0.1" value="1.5"></div>
+      <button class="btn sm block" id="btnGen">✦ このパターンを生成</button>
+      <p class="hint">半径を <code>R + A·sin(Nθ)</code> で波打たせて壁を作ります（写真のような凹凸）。「波の数 N」「波の高さ A」を変えて生成 → 右のG-codeをそのまま編集できます。</p>
     </div>
     <div class="section">
       <h2>フィラメント / eSun PLA+</h2>
@@ -229,11 +251,21 @@
     ② 中央3Dで確認：ドラッグで回転 / ホイールでズーム / スライダーで層送り<br>
     ③ 右エディタで直いじり → 自動で3D再描画<br>
     ④「⬇ダウンロード」で保存 → SDカード or Bambu Studio へ</p>
-    <p><b>便利機能</b><br>
-    ・右上「◑」でライト/ダーク切替<br>
-    ・左の値を変えて「スタート挿入」でA1 mini初期化ブロックを生成<br>
-    ・スニペットで一時停止 / 色替え(M600) / 温度変更をカーソル位置に挿入<br>
-    ・「速度で濃淡」でフィード速度を可視化、「単層のみ」で特定層だけ表示</p>
+    <p><b>プリセットで“パターン”を作る</b><br>
+    左上「プリセット/パターン」で種類を選び、<b>直径・高さ・波の数・波の高さ</b>を変えて「✦生成」。
+    「波打つ壁」は半径を <code>R + A·sin(Nθ)</code> で揺らして、写真のような凹凸の壁をノズルが描きます。
+    まずは<b>波の数</b>や<b>波の高さ</b>を変えて生成し、3Dの変化を見るのがおすすめ。</p>
+    <p><b>G-codeの読み方（どういじるか）</b><br>
+    ・<code>G1 X.. Y.. E.. F..</code> = 「そこまで<b>直線移動しながらEだけ押し出す</b>、速度F(mm/min)」<br>
+    ・<code>G1 Z.. </code> = 高さ（層）を上げる<br>
+    ・<code>M104/M109 S220</code> = ノズル温度、<code>M140/M190 S60</code> = ベッド温度<br>
+    ・<code>;</code> から後ろはコメント（動作に影響なし）<br>
+    「U字ウィグル」プリセットは1行=1つの動きが分かりやすいので、まず数値を書き換えて動きの対応を掴むのに最適です。</p>
+    <p><b>よくある編集</b><br>
+    ・<b>途中で止めて色替え</b>：止めたい高さの <code>G1 Z..</code> 行の下にカーソル→「🎨色替え(M600)」<br>
+    ・<b>一部だけ温度を上げる</b>：その位置で「🌡温度変更」（左のノズル温度値が入ります）<br>
+    ・<b>反りやすい</b>：ベッド温度を上げる / 1層目速度を下げる（左の値→再生成）<br>
+    ・右上「◑」でライト/ダーク、「速度で濃淡」でフィード速度、「単層のみ」で特定層だけ表示</p>
     <p class="hint">注: 純正Bambuファーム向けの完全マクロ展開は行いません。生成コードは編集前提の実用テンプレートです。実機投入前に必ず内容を確認してください。</p>
   </div>
   <div class="dlg-f"><button class="btn primary sm" id="btnCloseHelp">閉じる</button></div>
@@ -243,7 +275,8 @@
 const $=id=>document.getElementById(id);
 const P={};
 ['bedX','bedY','bedZ','nozzle','tNozzle','tNozzle1','tBed','tBed1','flow','mvs','fdia',
- 'layerH','layerH1','pspeed','pspeed1','tspeed','fan','retract'].forEach(k=>P[k]=$(k));
+ 'layerH','layerH1','pspeed','pspeed1','tspeed','fan','retract',
+ 'pDia','pH','pWaves','pAmp'].forEach(k=>P[k]=$(k));
 const num=k=>parseFloat(P[k].value)||0;
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
@@ -258,6 +291,7 @@ function parseGcode(text){
   let eTotal=0,timeSec=0,spMin=1e9,spMax=-1e9;
   const layerFor=zz=>{ if(!layerMap.has(zz)){layerMap.set(zz,{z:zz,segs:[],travels:[]});layerZs.push(zz);} return layerMap.get(zz); };
   for(const raw of lines){
+    if(raw.indexOf('PART START')>=0){mn.x=mn.y=mn.z=1e9;mx.x=mx.y=mx.z=-1e9;} // プライム/スカートを寸法から除外
     const line=raw.replace(/;.*$/,'').trim(); if(!line)continue;
     const parts=line.split(/\s+/), cmd=parts[0].toUpperCase();
     if(cmd==='G90'){absPos=true;continue;} if(cmd==='G91'){absPos=false;continue;}
@@ -437,18 +471,84 @@ const snippets={
 };
 document.querySelectorAll('[data-snip]').forEach(b=>b.onclick=()=>insertAtCursor(snippets[b.dataset.snip]()));
 
-/* ============ Sample ============ */
-function sampleGcode(){
-  const lh=num('layerH'),lh1=num('layerH1'),N=25,cx=90,cy=90,R=25;
-  let g=startGcode()+'M83\n';
-  for(let l=0;l<N;l++){
-    const z=(lh1+l*lh).toFixed(3), r=R-l*0.05;
-    g+=`; LAYER ${l} Z${z}\nG1 Z${z} F1200\n`;
-    g+=`G1 X${(cx+r).toFixed(2)} Y${cy.toFixed(2)} F${num('tspeed')*60}\n`;
-    for(let i=1;i<=60;i++){const a=i/60*Math.PI*2,px=cx+r*Math.cos(a),py=cy+r*Math.sin(a),el=(2*Math.PI*r/60)*0.045;
-      g+=`G1 X${px.toFixed(2)} Y${py.toFixed(2)} E${el.toFixed(4)} F${(l===0?num('pspeed1'):num('pspeed'))*60}\n`;}
+/* ============ Presets / patterns ============ */
+// E量: そのセグメントの押し出し長 = 移動距離 × 層厚 × 線幅 ÷ フィラメント断面積 × フロー比
+function extE(seg){ const lw=num('nozzle')*1.125, area=Math.PI*(num('fdia')/2)**2; return seg*num('layerH')*lw/area*num('flow'); }
+const CX=()=>num('bedX')/2, CY=()=>num('bedY')/2;
+
+// 花瓶モード: 1本の壁をらせん状に、1周ごとにZを1層分上げる。amp>0で波打つ。
+function genVase(amp){
+  const cx=CX(),cy=CY(),R=num('pDia')/2,H=num('pH'),lh=num('layerH'),lh1=num('layerH1');
+  const N=Math.max(0,Math.round(num('pWaves'))), spr=120;
+  let revs=Math.max(1,Math.round(H/lh)); if(revs*spr>14000)revs=Math.floor(14000/spr);
+  const dth=Math.PI*2/spr;
+  let g=startGcode();
+  g+='; PART START\n';
+  g+=`; ==== PRESET: ${amp>0?'波打つ壁':'らせん円柱'}（花瓶モード） ====\n`;
+  g+=`; 半径 r(θ) = ${R.toFixed(1)} + ${amp.toFixed(2)}*sin(${N}*θ)   ← 波の高さA/数Nを変えて再生成\n`;
+  let px=cx+(R+amp*Math.sin(0)), py=cy, curRev=-1;
+  g+=`G1 Z${lh1.toFixed(3)} F1200\nG1 X${px.toFixed(3)} Y${py.toFixed(3)} F${num('tspeed')*60}\n`;
+  const steps=revs*spr;
+  for(let s=1;s<=steps;s++){
+    const rev=Math.floor((s-1)/spr), z=lh1+rev*lh;
+    if(rev!==curRev){curRev=rev; g+=`; --- 周回 ${rev} / Z${z.toFixed(3)} ---\nG1 Z${z.toFixed(3)} F1200\n`;}
+    const th=s*dth, r=R+amp*Math.sin(N*th);
+    const x=cx+r*Math.cos(th), y=cy+r*Math.sin(th);
+    const e=extE(Math.hypot(x-px,y-py));
+    g+=`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${(rev===0?num('pspeed1'):num('pspeed'))*60}\n`;
+    px=x;py=y;
   }
   return g+endGcode();
+}
+// 積層: 各層で閉じたループを描き、Zを上げて次の層へ（円 or 正方形）。
+function genStack(shape){
+  const cx=CX(),cy=CY(),H=num('pH'),lh=num('layerH'),lh1=num('layerH1');
+  const N=Math.max(1,Math.round(H/lh));
+  let g=startGcode();
+  g+='; PART START\n';
+  g+=`; ==== PRESET: ${shape==='square'?'角柱':'円柱'}（積層） ====\n`;
+  for(let l=0;l<N;l++){
+    const z=(lh1+l*lh);
+    g+=`; LAYER ${l} / Z${z.toFixed(3)}\nG1 Z${z.toFixed(3)} F1200\n`;
+    let pts=[];
+    if(shape==='square'){const h=num('pDia')/2; pts=[[cx-h,cy-h],[cx+h,cy-h],[cx+h,cy+h],[cx-h,cy+h],[cx-h,cy-h]];}
+    else{const r=num('pDia')/2; for(let i=0;i<=72;i++){const a=i/72*Math.PI*2; pts.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}}
+    g+=`G1 X${pts[0][0].toFixed(3)} Y${pts[0][1].toFixed(3)} F${num('tspeed')*60}\n`;
+    for(let i=1;i<pts.length;i++){const e=extE(Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+      g+=`G1 X${pts[i][0].toFixed(3)} Y${pts[i][1].toFixed(3)} E${e.toFixed(5)} F${(l===0?num('pspeed1'):num('pspeed'))*60}\n`;}
+  }
+  return g+endGcode();
+}
+// U字ウィグル: ノズルが∪字を横に連ねて進む、いちばん分かりやすい教材パターン。
+function genU(){
+  const cx=CX(),cy=CY(),lh=num('layerH'),lh1=num('layerH1');
+  const N=Math.max(2,Math.round(num('pWaves'))), r=4, layers=4, arc=16;
+  const startX=cx-N*r, y0=cy;
+  let g=startGcode();
+  g+='; PART START\n';
+  g+=`; ==== PRESET: U字ウィグル（∪の連続でノズルを動かす教材）====\n`;
+  g+=`; G1 X.. Y.. E.. = 「そこまで直線移動しながらEだけ押し出す」。1本ずつ動きが対応します。\n`;
+  for(let l=0;l<layers;l++){
+    const z=(lh1+l*lh);
+    g+=`; LAYER ${l} / Z${z.toFixed(3)}\nG1 Z${z.toFixed(3)} F1200\n`;
+    let px=startX, py=y0;
+    g+=`G1 X${px.toFixed(3)} Y${py.toFixed(3)} F${num('tspeed')*60}\n`;
+    for(let k=0;k<N;k++){const bx=startX+k*2*r;
+      for(let a=1;a<=arc;a++){const t=a/arc*Math.PI; const x=bx+r-r*Math.cos(t), y=y0-r*Math.sin(t);
+        const e=extE(Math.hypot(x-px,y-py));
+        g+=`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${(l===0?num('pspeed1'):num('pspeed'))*60}\n`;
+        px=x;py=y;}
+    }
+  }
+  return g+endGcode();
+}
+function genPreset(){
+  const k=$('preset').value;
+  if(k==='wavy')return genVase(num('pAmp'));
+  if(k==='spiral')return genVase(0);
+  if(k==='square')return genStack('square');
+  if(k==='uwiggle')return genU();
+  return genStack('circle');
 }
 
 /* ============ Wire up ============ */
@@ -462,7 +562,10 @@ $('btnTop').onclick=()=>{view.auto=true;view.az=-Math.PI/2;view.el=1.55;draw();}
 $('btnStart').onclick=()=>{ if(editor.value.trim()===''||editor.value.trim().startsWith(';'))editor.value=startGcode();else insertAtCursor(startGcode()); onEdit();};
 $('btnEnd').onclick=()=>{editor.value+=(editor.value.endsWith('\n')?'':'\n')+endGcode();onEdit();};
 $('btnFormat').onclick=()=>parseGcode(editor.value);
-$('btnSample').onclick=()=>{editor.value=sampleGcode();view.auto=true;onEdit();};
+function loadPreset(){editor.value=genPreset();view.auto=true;onEdit();}
+$('btnSample').onclick=loadPreset;
+$('btnGen').onclick=loadPreset;
+$('preset').addEventListener('change',loadPreset);
 $('btnDownload').onclick=()=>{const blob=new Blob([editor.value],{type:'text/plain'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='A1mini_eSunPLAplus.gcode';a.click();URL.revokeObjectURL(a.href);};
 $('fileInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;
@@ -484,8 +587,9 @@ $('btnTheme').onclick=()=>applyTheme(document.documentElement.getAttribute('data
   applyTheme(t);
 })();
 
-editor.value='; G-code Studio — Bambu Lab A1 mini / eSun PLA+\n; 「サンプル生成」または「📂読込」で開始。左でプロファイル調整、右で直接編集できます。\n';
-syncGutter(); draw();
+// 起動時に「波打つ壁」プリセットを既定で読み込み、すぐ触れる状態にする
+editor.value=genPreset();
+syncGutter(); parseGcode(editor.value); view.auto=true; draw();
 </script>
 </body>
 </html>
