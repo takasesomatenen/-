@@ -5,83 +5,119 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>G-code Studio — Bambu Lab A1 mini / eSun PLA+</title>
 <style>
+  /* ---------- monochrome tokens (cool-neutral bias) ---------- */
   :root{
-    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#2a2f3a;
-    --text:#e6e9ef; --muted:#8b93a3; --accent:#00c2a8; --accent2:#7aa2ff;
+    --bg:#0d0e10; --panel:#141619; --panel2:#1a1d22; --line:#2a2d34;
+    --text:#e9eaed; --muted:#969aa3; --ink:#f3f4f6; --ink-soft:#c7cad0;
+    --focus:#8a8f99;
+    --path:#eef0f3; --path-dim:#5a5e66; --grid:#242730; --bed:#3a3e47; --travel:#4c515c;
+    --sp-lo:35; --sp-hi:95;               /* speed→lightness ramp (dark) */
     --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+    --shadow:0 1px 0 rgba(255,255,255,.02);
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f5f6f8; --panel:#ffffff; --panel2:#f0f2f4; --line:#dde0e5;
+      --text:#181a1e; --muted:#646973; --ink:#181a1e; --ink-soft:#3a3e46;
+      --focus:#4a4f59;
+      --path:#1a1c20; --path-dim:#b6bac1; --grid:#e4e7ec; --bed:#c3c7cf; --travel:#a8adb6;
+      --sp-lo:78; --sp-hi:12;
+      --shadow:0 1px 2px rgba(20,24,32,.05);
+    }
+  }
+  /* explicit toggle wins over OS in both directions */
+  :root[data-theme="dark"]{
+    --bg:#0d0e10; --panel:#141619; --panel2:#1a1d22; --line:#2a2d34;
+    --text:#e9eaed; --muted:#969aa3; --ink:#f3f4f6; --ink-soft:#c7cad0; --focus:#8a8f99;
+    --path:#eef0f3; --path-dim:#5a5e66; --grid:#242730; --bed:#3a3e47; --travel:#4c515c;
+    --sp-lo:35; --sp-hi:95; --shadow:0 1px 0 rgba(255,255,255,.02);
+  }
+  :root[data-theme="light"]{
+    --bg:#f5f6f8; --panel:#ffffff; --panel2:#f0f2f4; --line:#dde0e5;
+    --text:#181a1e; --muted:#646973; --ink:#181a1e; --ink-soft:#3a3e46; --focus:#4a4f59;
+    --path:#1a1c20; --path-dim:#b6bac1; --grid:#e4e7ec; --bed:#c3c7cf; --travel:#a8adb6;
+    --sp-lo:78; --sp-hi:12; --shadow:0 1px 2px rgba(20,24,32,.05);
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans JP",sans-serif;font-size:14px}
-  a{color:var(--accent2)}
-  header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);
+  :focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:4px}
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--panel);
     border-bottom:1px solid var(--line);flex-wrap:wrap}
-  header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}
+  header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+  header h1 .mk{width:11px;height:11px;border:2px solid var(--ink);border-radius:3px;display:inline-block}
   header .sub{color:var(--muted);font-size:12px}
-  .badge{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:11.5px;color:var(--muted)}
-  .badge b{color:var(--accent)}
+  .badge{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;
+    font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .badge b{color:var(--ink-soft)}
   .grow{flex:1}
   button,select,input,textarea{font-family:inherit}
   .btn{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;
-    padding:7px 12px;cursor:pointer;font-size:13px;transition:.12s}
-  .btn:hover{border-color:var(--accent);color:#fff}
-  .btn.primary{background:var(--accent);color:#04120f;border-color:var(--accent);font-weight:650}
-  .btn.primary:hover{filter:brightness(1.08)}
+    padding:7px 12px;cursor:pointer;font-size:13px;transition:border-color .12s,background .12s,color .12s;box-shadow:var(--shadow)}
+  .btn:hover{border-color:var(--focus);color:var(--ink)}
+  .btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:650}
+  .btn.primary:hover{filter:brightness(1.06)}
   .btn.sm{padding:5px 9px;font-size:12px}
+  .icobtn{width:32px;height:30px;padding:0;display:inline-grid;place-items:center;font-size:14px}
   main{display:grid;grid-template-columns:300px 1fr 1fr;height:calc(100vh - 53px)}
   @media(max-width:1100px){main{grid-template-columns:1fr;height:auto}}
   .col{overflow:auto;border-right:1px solid var(--line);height:100%}
   @media(max-width:1100px){.col{height:auto;border-right:none;border-bottom:1px solid var(--line)}
     #viewerCol{height:60vh}}
   .section{padding:14px 16px;border-bottom:1px solid var(--line)}
-  .section h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 10px}
+  .section h2{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:0 0 10px;font-weight:650}
   .field{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:7px 0}
   .field label{color:var(--muted);font-size:12.5px}
-  .field input{background:#0c0e13;color:var(--text);border:1px solid var(--line);
-    border-radius:6px;padding:5px 8px;width:96px;text-align:right;font-size:12.5px}
+  .field input{background:var(--bg);color:var(--text);border:1px solid var(--line);
+    border-radius:6px;padding:5px 8px;width:96px;text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums}
+  .field input:focus{outline:none;border-color:var(--focus)}
   .row2{display:flex;gap:8px;flex-wrap:wrap}
   .hint{color:var(--muted);font-size:11.5px;line-height:1.5;margin-top:8px}
-  #viewerCol{position:relative;background:radial-gradient(ellipse at 50% 30%,#12151c,#0b0d11 70%);overflow:hidden}
-  #canvas{width:100%;height:100%;display:block;cursor:grab}
+  #viewerCol{position:relative;background:var(--bg);overflow:hidden}
+  #canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
   #canvas:active{cursor:grabbing}
   .overlay{position:absolute;left:0;right:0;pointer-events:none}
   .vtop{top:10px;display:flex;gap:8px;padding:0 12px;flex-wrap:wrap}
-  .chip{pointer-events:auto;background:rgba(20,24,32,.85);border:1px solid var(--line);border-radius:8px;
-    padding:6px 10px;font-size:12px;color:var(--muted);backdrop-filter:blur(4px)}
-  .chip b{color:var(--text)}
+  .chip{pointer-events:auto;background:color-mix(in srgb,var(--panel) 88%,transparent);
+    border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--muted);
+    backdrop-filter:blur(6px);font-variant-numeric:tabular-nums}
+  .chip b{color:var(--ink-soft)}
   .vctrl{bottom:12px;padding:0 14px}
-  .vctrl .bar{pointer-events:auto;background:rgba(18,21,28,.9);border:1px solid var(--line);
-    border-radius:10px;padding:10px 12px;backdrop-filter:blur(4px)}
+  .vctrl .bar{pointer-events:auto;background:color-mix(in srgb,var(--panel) 92%,transparent);
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px;backdrop-filter:blur(6px);box-shadow:var(--shadow)}
   .slider-row{display:flex;align-items:center;gap:10px}
-  .slider-row input[type=range]{flex:1;accent-color:var(--accent)}
-  .slider-row span{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;min-width:118px;text-align:right}
+  .slider-row input[type=range]{flex:1;accent-color:var(--ink)}
+  .slider-row span{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;min-width:118px;text-align:right;font-family:var(--mono)}
   .toggle{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;cursor:pointer;pointer-events:auto}
+  .toggle input{accent-color:var(--ink)}
   #editorCol{display:flex;flex-direction:column;height:100%;min-height:340px;border-right:none}
   .etoolbar{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:var(--panel)}
-  .edit-wrap{position:relative;flex:1;overflow:hidden;background:#0c0e13;display:grid;grid-template-columns:auto 1fr}
-  #gutter{overflow:hidden;padding:10px 8px;text-align:right;color:#4b5364;font-family:var(--mono);font-size:12.5px;
-    line-height:1.55;user-select:none;background:#0a0c10;border-right:1px solid var(--line);white-space:pre}
-  #editor{border:0;outline:0;resize:none;background:transparent;color:#d7dce6;
+  .edit-wrap{position:relative;flex:1;overflow:hidden;background:var(--bg);display:grid;grid-template-columns:auto 1fr}
+  #gutter{overflow:hidden;padding:10px 8px;text-align:right;color:var(--muted);opacity:.7;font-family:var(--mono);font-size:12.5px;
+    line-height:1.55;user-select:none;background:var(--panel2);border-right:1px solid var(--line);white-space:pre}
+  #editor{border:0;outline:0;resize:none;background:transparent;color:var(--text);
     font-family:var(--mono);font-size:12.5px;line-height:1.55;padding:10px 12px;white-space:pre;
     width:100%;height:100%;tab-size:2;overflow:auto}
   .estatus{display:flex;gap:16px;padding:6px 12px;border-top:1px solid var(--line);color:var(--muted);
-    font-size:11.5px;background:var(--panel);flex-wrap:wrap}
-  .estatus b{color:var(--text)}
+    font-size:11.5px;background:var(--panel);flex-wrap:wrap;font-variant-numeric:tabular-nums}
+  .estatus b{color:var(--ink-soft);font-family:var(--mono)}
   dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:12px;max-width:540px;padding:0}
-  dialog::backdrop{background:rgba(0,0,0,.55)}
+  dialog::backdrop{background:rgba(0,0,0,.5)}
   .dlg-h{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:650}
-  .dlg-b{padding:16px;line-height:1.6}
+  .dlg-b{padding:16px;line-height:1.65}
   .dlg-f{padding:12px 16px;border-top:1px solid var(--line);text-align:right}
-  code{font-family:var(--mono);background:#0c0e13;padding:1px 5px;border-radius:4px;font-size:12px}
+  code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px;font-size:12px}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <header>
-  <h1>🧩 G-code Studio</h1>
+  <h1><span class="mk"></span>G-code Studio</h1>
   <span class="badge">Printer <b>Bambu Lab A1 mini</b></span>
   <span class="badge">Filament <b>eSun PLA+</b></span>
   <span class="sub">G-codeを直接いじれるスライサー・エディタ（完全オフライン動作）</span>
   <div class="grow"></div>
+  <button class="btn sm icobtn" id="btnTheme" title="ライト / ダーク切替" aria-label="テーマ切替">◑</button>
   <button class="btn sm" id="btnHelp">使い方</button>
   <label class="btn sm" for="fileInput">📂 .gcode 読込</label>
   <input type="file" id="fileInput" accept=".gcode,.gco,.g,.txt" style="display:none">
@@ -142,12 +178,12 @@
     <div class="overlay vctrl">
       <div class="bar">
         <div class="slider-row">
-          <input type="range" id="layerSlider" min="0" max="0" value="0">
+          <input type="range" id="layerSlider" min="0" max="0" value="0" aria-label="表示レイヤー">
           <span id="layerLabel">レイヤー 0 / 0</span>
         </div>
         <div class="slider-row" style="margin-top:8px">
           <label class="toggle"><input type="checkbox" id="showTravel"> 移動(travel)</label>
-          <label class="toggle"><input type="checkbox" id="colorSpeed"> 速度で色分け</label>
+          <label class="toggle"><input type="checkbox" id="colorSpeed"> 速度で濃淡</label>
           <label class="toggle"><input type="checkbox" id="singleLayer"> 単層のみ</label>
           <div class="grow"></div>
           <button class="btn sm" id="btnFit">全体</button>
@@ -170,7 +206,7 @@
     </div>
     <div class="edit-wrap">
       <div id="gutter">1</div>
-      <textarea id="editor" spellcheck="false" wrap="off" placeholder="; ここにG-codeを入力・貼り付け・読込"></textarea>
+      <textarea id="editor" spellcheck="false" wrap="off" placeholder="; ここにG-codeを入力・貼り付け・読込" aria-label="G-code エディタ"></textarea>
     </div>
     <div class="estatus">
       <span>行 <b id="stLine">1</b></span>
@@ -194,9 +230,10 @@
     ③ 右エディタで直いじり → 自動で3D再描画<br>
     ④「⬇ダウンロード」で保存 → SDカード or Bambu Studio へ</p>
     <p><b>便利機能</b><br>
+    ・右上「◑」でライト/ダーク切替<br>
     ・左の値を変えて「スタート挿入」でA1 mini初期化ブロックを生成<br>
     ・スニペットで一時停止 / 色替え(M600) / 温度変更をカーソル位置に挿入<br>
-    ・「速度で色分け」でフィード速度を可視化、「単層のみ」で特定層だけ表示</p>
+    ・「速度で濃淡」でフィード速度を可視化、「単層のみ」で特定層だけ表示</p>
     <p class="hint">注: 純正Bambuファーム向けの完全マクロ展開は行いません。生成コードは編集前提の実用テンプレートです。実機投入前に必ず内容を確認してください。</p>
   </div>
   <div class="dlg-f"><button class="btn primary sm" id="btnCloseHelp">閉じる</button></div>
@@ -208,6 +245,7 @@ const P={};
 ['bedX','bedY','bedZ','nozzle','tNozzle','tNozzle1','tBed','tBed1','flow','mvs','fdia',
  'layerH','layerH1','pspeed','pspeed1','tspeed','fan','retract'].forEach(k=>P[k]=$(k));
 const num=k=>parseFloat(P[k].value)||0;
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 /* ============ G-code parse ============ */
 let model={layers:[],min:{x:1e9,y:1e9,z:1e9},max:{x:-1e9,y:-1e9,z:-1e9},eTotal:0,timeSec:0,spMin:600,spMax:9000};
@@ -278,8 +316,9 @@ function project(x,y,z,cx,cy,cz,ox,oy,s){
   return [ ox + x1*s, oy - (y1*se + pz*ce)*s ];
 }
 function speedColor(f){
+  const lo=parseFloat(css('--sp-lo')), hi=parseFloat(css('--sp-hi'));
   const t=Math.max(0,Math.min(1,(f-model.spMin)/Math.max(1,model.spMax-model.spMin)));
-  const h=210-150*t; return `hsl(${h},70%,58%)`;
+  return `hsl(220,6%,${lo+(hi-lo)*t}%)`;
 }
 function draw(){
   const {w,h}=sizeCanvas(); ctx.clearRect(0,0,w,h);
@@ -287,29 +326,30 @@ function draw(){
   const cx=bx/2, cy=by/2, cz=(model.layers.length?(model.min.z+model.max.z)/2:0);
   if(view.auto){
     const span=Math.max(bx,by,(model.max.z-model.min.z)||1);
-    view.scale=Math.min(w,h)/(span*1.7); view.panX=0; view.panY= (view.el>1.4?0:-h*0.06);
+    view.scale=Math.min(w,h)/(span*1.7); view.panX=0; view.panY=(view.el>1.4?0:-h*0.06);
   }
   const ox=w/2+view.panX, oy=h/2+view.panY, s=view.scale;
   const pj=(x,y,z)=>project(x,y,z,cx,cy,cz,ox,oy,s);
+  const cGrid=css('--grid'), cBed=css('--bed'), cTravel=css('--travel'),
+        cPath=css('--path'), cDim=css('--path-dim');
   // bed grid
-  ctx.lineWidth=1;
-  ctx.strokeStyle='#232833';
-  const step=20;
-  for(let gx=0;gx<=bx+0.1;gx+=step){const a=pj(gx,0,0),b=pj(gx,by,0);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
-  for(let gy=0;gy<=by+0.1;gy+=step){const a=pj(0,gy,0),b=pj(bx,gy,0);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+  ctx.lineWidth=1; ctx.strokeStyle=cGrid;
+  for(let gx=0;gx<=bx+0.1;gx+=20){const a=pj(gx,0,0),b=pj(gx,by,0);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+  for(let gy=0;gy<=by+0.1;gy+=20){const a=pj(0,gy,0),b=pj(bx,gy,0);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
   // bed border + origin
-  ctx.strokeStyle='#3a4152'; ctx.lineWidth=1.5;
+  ctx.strokeStyle=cBed; ctx.lineWidth=1.5;
   const c=[pj(0,0,0),pj(bx,0,0),pj(bx,by,0),pj(0,by,0)];
   ctx.beginPath();ctx.moveTo(c[0][0],c[0][1]);for(let i=1;i<4;i++)ctx.lineTo(c[i][0],c[i][1]);ctx.closePath();ctx.stroke();
-  const o=pj(0,0,0); ctx.fillStyle='#00c2a8'; ctx.beginPath();ctx.arc(o[0],o[1],3,0,7);ctx.fill();
+  const o=pj(0,0,0); ctx.fillStyle=cPath; ctx.beginPath();ctx.arc(o[0],o[1],3,0,7);ctx.fill();
   // toolpaths
   const top=parseInt($('layerSlider').value)||0;
   const single=$('singleLayer').checked, showT=$('showTravel').checked, bySpeed=$('colorSpeed').checked;
   const lo=single?top:0;
   if(showT){
-    ctx.strokeStyle='rgba(90,105,130,.5)'; ctx.lineWidth=0.6;
+    ctx.strokeStyle=cTravel; ctx.globalAlpha=.6; ctx.lineWidth=0.6;
     for(let li=lo;li<=top&&li<model.layers.length;li++){const T=model.layers[li].travels;ctx.beginPath();
       for(let i=0;i<T.length;i+=6){const a=pj(T[i],T[i+1],T[i+2]),b=pj(T[i+3],T[i+4],T[i+5]);ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}
+    ctx.globalAlpha=1;
   }
   ctx.lineWidth=1.1; ctx.lineCap='round';
   for(let li=lo;li<=top&&li<model.layers.length;li++){
@@ -319,12 +359,14 @@ function draw(){
         ctx.strokeStyle=speedColor(S[i+6]);ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
     }else{
       const isTop=(li===top);
-      ctx.strokeStyle=isTop?'#00e6c6':`rgba(0,194,168,${single?0.95:Math.max(0.18,0.18+0.6*li/Math.max(1,top))})`;
+      if(isTop){ctx.strokeStyle=cPath;ctx.globalAlpha=1;}
+      else{ctx.strokeStyle=cDim;ctx.globalAlpha=single?1:Math.max(0.28,0.28+0.6*li/Math.max(1,top));}
       ctx.beginPath();
       for(let i=0;i<S.length;i+=7){const a=pj(S[i],S[i+1],S[i+2]),b=pj(S[i+3],S[i+4],S[i+5]);ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
       ctx.stroke();
     }
   }
+  ctx.globalAlpha=1;
   $('layerLabel').textContent=`レイヤー ${model.layers.length?top+1:0} / ${model.layers.length}`;
 }
 // interaction
@@ -427,6 +469,20 @@ $('fileInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)ret
   const r=new FileReader();r.onload=()=>{editor.value=r.result;view.auto=true;onEdit();};r.readAsText(f);});
 $('btnHelp').onclick=()=>$('helpDlg').showModal();
 $('btnCloseHelp').onclick=()=>$('helpDlg').close();
+
+/* ============ theme (after renderer is defined) ============ */
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  $('btnTheme').textContent = t==='dark' ? '◐' : '◑';
+  try{localStorage.setItem('gcs-theme',t);}catch(e){}
+  draw();
+}
+$('btnTheme').onclick=()=>applyTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark');
+(function initTheme(){
+  let t; try{t=localStorage.getItem('gcs-theme');}catch(e){}
+  if(!t) t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  applyTheme(t);
+})();
 
 editor.value='; G-code Studio — Bambu Lab A1 mini / eSun PLA+\n; 「サンプル生成」または「📂読込」で開始。左でプロファイル調整、右で直接編集できます。\n';
 syncGutter(); draw();
