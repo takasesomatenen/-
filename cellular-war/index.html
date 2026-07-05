@@ -204,8 +204,8 @@ let running = true;
 let combat = false;
 let aiOn = true;
 let aiLevel = 0.9;        // AI配置頻度（大きいほど頻繁）
-let aiEnergyMul = 1.2;    // AIのエナジー回復倍率。SEグライダー鏡像の衝突非対称で
-                         // 生じる赤側の構造的有利（AI対AIで約11:5）を補正し、中で概ね五分に。
+let aiEnergyMul = 1.1;    // AIのエナジー回復倍率。SEグライダー鏡像の衝突非対称で
+                         // 生じる赤側の構造的有利を補正し、中で概ね互角に（AI対AIは元々ばらつく）。
 let stepsPerSec = 10;
 let generation = 0;
 let gameOver = false;
@@ -367,6 +367,22 @@ function draw(){
       if(x>=0&&x<COLS&&y>=0&&y<ROWS) ctx.fillRect(x*CELL,y*CELL,CELL-1,CELL-1);
     }
   }
+
+  // 制圧ゲージが溜まってくると盤面の縁を支配側の色で発光させる（緊張感の可視化）
+  const domProg = Math.max(domTimer[RED], domTimer[BLUE]) / DOM_HOLD;
+  if(domProg>0.05 && !gameOver){
+    const col = (domTimer[RED]>=domTimer[BLUE]) ? '255,82,82' : '77,159,255';
+    const a = Math.min(0.6, 0.12 + domProg*0.55), t=28, W=cv.width, H=cv.height;
+    const edge=(x,y,w,h, gx0,gy0,gx1,gy1)=>{
+      const gr=ctx.createLinearGradient(gx0,gy0,gx1,gy1);
+      gr.addColorStop(0,`rgba(${col},${a})`); gr.addColorStop(1,`rgba(${col},0)`);
+      ctx.fillStyle=gr; ctx.fillRect(x,y,w,h);
+    };
+    edge(0,0,W,t, 0,0,0,t);          // 上
+    edge(0,H-t,W,t, 0,H,0,H-t);      // 下
+    edge(0,0,t,H, 0,0,t,0);          // 左
+    edge(W-t,0,t,H, W,0,W-t,0);      // 右
+  }
 }
 
 // ================= HUD =================
@@ -417,7 +433,8 @@ function updateHUD(){
 const GRACE     = 2.6;   // 全滅確定までの猶予（秒）
 const DOM_FRAC  = 0.70;  // 制圧とみなす生存セル比率
 const DOM_HOLD  = 6.0;   // 制圧を維持すべき時間（秒）
-const DOM_MIN   = 60;    // 制圧判定を始める最低総セル数（序盤の誤判定防止）
+const DOM_FLOOR = 35;    // 制圧側が自前で持つべき最低セル数（序盤/過疎盤の誤判定防止）
+const DOM_DECAY = 2.0;   // 制圧が途切れた時のゲージ減衰倍率（瞬間的な谷でリセットしない）
 const MATCH_LIM = 180;   // 制限時間（秒）
 let deadTimer = {[RED]:0, [BLUE]:0};
 let domTimer  = {[RED]:0, [BLUE]:0};
@@ -435,14 +452,15 @@ function checkWin(dt){
   if(deadTimer[RED] >=GRACE) return endGame('青の勝利！（全滅）','#4d9fff');
   if(deadTimer[BLUE]>=GRACE) return endGame('赤の勝利！（全滅）','#ff5252');
 
-  // 2) 制圧
+  // 2) 制圧: 支配中はゲージ加算、途切れたら即0リセットせず緩やかに減衰。
+  //    これで「弾が飛び去って総数が一瞬DOM_MINを割る」程度の谷では勝ちを取り消さない。
   const tot = cntR + cntB;
-  if(tot >= DOM_MIN){
-    domTimer[RED]  = (cntR/tot >= DOM_FRAC) ? domTimer[RED]+dt  : 0;
-    domTimer[BLUE] = (cntB/tot >= DOM_FRAC) ? domTimer[BLUE]+dt : 0;
-    if(domTimer[RED] >=DOM_HOLD) return endGame('赤の勝利！（制圧）','#ff5252');
-    if(domTimer[BLUE]>=DOM_HOLD) return endGame('青の勝利！（制圧）','#4d9fff');
-  } else { domTimer[RED]=0; domTimer[BLUE]=0; }
+  const rDom = cntR>=DOM_FLOOR && cntR >= DOM_FRAC*tot;
+  const bDom = cntB>=DOM_FLOOR && cntB >= DOM_FRAC*tot;
+  domTimer[RED]  = rDom ? domTimer[RED]+dt  : Math.max(0, domTimer[RED]-DOM_DECAY*dt);
+  domTimer[BLUE] = bDom ? domTimer[BLUE]+dt : Math.max(0, domTimer[BLUE]-DOM_DECAY*dt);
+  if(domTimer[RED] >=DOM_HOLD) return endGame('赤の勝利！（制圧）','#ff5252');
+  if(domTimer[BLUE]>=DOM_HOLD) return endGame('青の勝利！（制圧）','#4d9fff');
 
   // 3) 時間切れ
   if(matchClock >= MATCH_LIM){
@@ -556,9 +574,9 @@ document.getElementById('btnAI').onclick=e=>{
 };
 document.getElementById('speed').oninput=e=>{ stepsPerSec=+e.target.value; };
 const AI_DIFF = {
-  easy: {level:0.5, energy:1.0},   // 構造的な赤有利を残す＝人間が勝ちやすい
-  mid:  {level:0.9, energy:1.2},   // 概ね五分
-  hard: {level:1.4, energy:1.45},  // AIが手数もエナジーも上
+  easy: {level:0.5, energy:0.9},   // 手数少なめ＋省エネ＝人間（赤）が勝ちやすい
+  mid:  {level:0.9, energy:1.1},   // 概ね互角
+  hard: {level:1.4, energy:1.4},   // AIが手数もエナジーも上
 };
 document.getElementById('ailv').onchange=e=>{
   const d=AI_DIFF[e.target.value]||AI_DIFF.mid; aiLevel=d.level; aiEnergyMul=d.energy;
