@@ -410,11 +410,14 @@ function draw(){
   const lo=single?top:0;
   if(showT){
     const cHop=css('--ink-soft');
+    const zLimit=(has?model.max.z:0)+3; // 造形物より十分高い移動(エンドのZ10リフト等)は描かない
     // flat travel（faint）と Zホップ（縦移動 dz≠0 を明るく）を描き分ける
     for(let pass=0;pass<2;pass++){
       ctx.strokeStyle = pass?cHop:cTravel; ctx.globalAlpha = pass?0.95:0.5; ctx.lineWidth = pass?1.0:0.7;
       for(let li=lo;li<=top&&li<model.layers.length;li++){const T=model.layers[li].travels;ctx.beginPath();
-        for(let i=0;i<T.length;i+=6){const isHop=Math.abs(T[i+5]-T[i+2])>0.02; if(isHop!==!!pass)continue;
+        for(let i=0;i<T.length;i+=6){
+          if(T[i+2]>zLimit||T[i+5]>zLimit)continue;
+          const isHop=Math.abs(T[i+5]-T[i+2])>0.02; if(isHop!==!!pass)continue;
           const a=pj(T[i],T[i+1],T[i+2]),b=pj(T[i+3],T[i+4],T[i+5]);ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}
     }
     ctx.globalAlpha=1;
