@@ -166,6 +166,49 @@
       </div>
 
       <div class="row" style="margin-top:12px">
+        <div class="field" style="min-width:220px">
+          <label>出力モード</label>
+          <select id="outMode">
+            <option value="midi">MIDI のみ（DAW へ送信）</option>
+            <option value="synth">内蔵シンセ（このページで鳴らす）📱</option>
+            <option value="both">MIDI + 内蔵シンセ</option>
+          </select>
+        </div>
+        <div class="field" style="justify-content:flex-end">
+          <label>&nbsp;</label>
+          <button id="soundBtn" title="スマホは最初にタップして音を有効化">🔊 音を開始</button>
+        </div>
+      </div>
+
+      <div class="row" id="synthOpts" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+        <div class="field"><label>音色</label>
+          <select id="synWave">
+            <option value="sawtooth">Saw（太い）</option>
+            <option value="square">Square（電子的）</option>
+            <option value="triangle">Triangle（柔らか）</option>
+            <option value="sine">Sine（純音）</option>
+          </select></div>
+        <div class="field"><label>スケール</label>
+          <select id="synScale">
+            <option value="majPenta">メジャーペンタ</option>
+            <option value="minPenta">マイナーペンタ</option>
+            <option value="major">メジャー</option>
+            <option value="minor">マイナー</option>
+            <option value="chromatic">クロマチック</option>
+          </select></div>
+        <div class="field"><label>音域</label>
+          <select id="synBase">
+            <option value="36">低 (C2)</option>
+            <option value="48" selected>標準 (C3)</option>
+            <option value="60">高 (C4)</option>
+          </select></div>
+        <div class="field" style="flex:1;min-width:130px"><label>音量: <span id="synVolV">0.5</span></label>
+          <input type="range" id="synVol" min="0" max="1" step="0.01" value="0.5" style="width:100%"></div>
+        <div class="field" style="flex-basis:100%"><span class="note" style="margin-top:2px">
+          手ごとに1音：<b>Y＝音程</b> / <b>開き＝音量</b>（グーで消音）/ <b>X＝音色の明るさ</b>。iPhone でも鳴ります。</span></div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
         <div class="field" style="flex:1">
           <label>スムージング（ジッタ抑制）: <span id="smoothVal">0.35</span></label>
           <input type="range" id="smoothRange" min="0" max="0.92" step="0.01" value="0.35" style="width:100%">
@@ -249,6 +292,8 @@ const stage=$("stage"), camHint=$("camHint"), fpsEl=$("fps"), liveDot=$("liveDot
 const startBtn=$("startBtn"), stopBtn=$("stopBtn"), panicBtn=$("panicBtn");
 const mirrorChk=$("mirrorChk"), skelChk=$("skelChk");
 const midiOut=$("midiOut"), midiChan=$("midiChan"), outChk=$("outChk"), midiBadge=$("midiBadge");
+const outMode=$("outMode"), soundBtn=$("soundBtn"), synthOpts=$("synthOpts");
+const synWave=$("synWave"), synScale=$("synScale"), synBase=$("synBase"), synVol=$("synVol"), synVolV=$("synVolV");
 const smoothRange=$("smoothRange"), smoothVal=$("smoothVal"), rateRange=$("rateRange"), rateVal=$("rateVal");
 const mapBody=$("mapBody"), metersEl=$("meters");
 const stCam=$("stCam"), stHands=$("stHands"), stOut=$("stOut");
@@ -333,10 +378,63 @@ function sendCC(ch,cc,val){ if(midiPort) midiPort.send([0xB0|(ch&0x0f), cc&0x7f,
 function sendNoteOn(ch,note,vel){ if(midiPort) midiPort.send([0x90|(ch&0x0f), note&0x7f, vel&0x7f]); }
 function sendNoteOff(ch,note){ if(midiPort) midiPort.send([0x80|(ch&0x0f), note&0x7f, 0]); }
 function panic(){
-  if(!midiPort) return;
-  for(let ch=0;ch<16;ch++){ midiPort.send([0xB0|ch,123,0]); midiPort.send([0xB0|ch,120,0]); }
+  if(midiPort){
+    for(let ch=0;ch<16;ch++){ midiPort.send([0xB0|ch,123,0]); midiPort.send([0xB0|ch,120,0]); }
+  }
   for(const c of config) if(c.kind==="note") c._noteState=false;
+  synth.panic();
 }
+
+/* ================= Built-in Web Audio synth (works on phones, incl. iOS) =================
+   Hand → sound directly: Y=pitch, openness=volume, X=filter brightness. One voice per hand. */
+const synth = {
+  ctx:null, master:null, comp:null,
+  wave:"sawtooth", scaleName:"majPenta", base:48, semis:24, vol:0.5,
+  voices:{Right:null, Left:null},
+  scales:{ chromatic:[0,1,2,3,4,5,6,7,8,9,10,11], major:[0,2,4,5,7,9,11],
+           minor:[0,2,3,5,7,8,10], majPenta:[0,2,4,7,9], minPenta:[0,3,5,7,10] },
+  ready(){ return !!this.ctx; },
+  ensure(){ // must be called from a user gesture (iOS autoplay policy)
+    if(this.ctx){ if(this.ctx.state==="suspended") this.ctx.resume(); return true; }
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return false;
+    this.ctx=new AC();
+    this.master=this.ctx.createGain(); this.master.gain.value=this.vol;
+    this.comp=this.ctx.createDynamicsCompressor();
+    this.master.connect(this.comp); this.comp.connect(this.ctx.destination);
+    return true;
+  },
+  voice(hand){
+    let v=this.voices[hand]; if(v) return v;
+    const c=this.ctx;
+    const osc=c.createOscillator(); osc.type=this.wave;
+    const flt=c.createBiquadFilter(); flt.type="lowpass"; flt.frequency.value=1200; flt.Q.value=6;
+    const g=c.createGain(); g.gain.value=0;
+    osc.connect(flt); flt.connect(g); g.connect(this.master); osc.start();
+    v={osc,flt,g}; this.voices[hand]=v; return v;
+  },
+  setWave(w){ this.wave=w; for(const k in this.voices){ const v=this.voices[k]; if(v) v.osc.type=w; } },
+  setVol(x){ this.vol=x; if(this.master) this.master.gain.setTargetAtTime(x,this.ctx.currentTime,0.02); },
+  m2f(m){ return 440*Math.pow(2,(m-69)/12); },
+  quantize(off){ const arr=this.scales[this.scaleName]||this.scales.chromatic;
+    const oct=Math.floor(off/12), w=off-oct*12; let b=arr[0],bd=99;
+    for(const n of arr){ const d=Math.abs(n-w); if(d<bd){bd=d;b=n;} } return oct*12+b; },
+  update(perHand){
+    if(!this.ctx) return; const t=this.ctx.currentTime;
+    for(const hand of ["Right","Left"]){
+      const m=perHand[hand];
+      if(m){ const v=this.voice(hand);
+        const midi=this.base+this.quantize(m.y*this.semis);
+        v.osc.frequency.setTargetAtTime(this.m2f(midi), t, 0.03);
+        v.flt.frequency.setTargetAtTime(300+m.x*5200, t, 0.03);
+        v.g.gain.setTargetAtTime(Math.max(0,m.spread)*0.22, t, 0.04); // openness = loudness
+      } else if(this.voices[hand]){ this.voices[hand].g.gain.setTargetAtTime(0, t, 0.05); }
+    }
+  },
+  panic(){ if(!this.ctx) return; const t=this.ctx.currentTime;
+    for(const k in this.voices){ const v=this.voices[k]; if(v) v.g.gain.setTargetAtTime(0,t,0.02); } }
+};
+const synthOn = ()=> outMode.value==="synth" || outMode.value==="both";
+const midiModeOn = ()=> outMode.value==="midi" || outMode.value==="both";
 
 /* ================= Camera + Landmarker ================= */
 async function ensureLandmarker(){
@@ -360,6 +458,7 @@ async function startCam(){
   try{
     startBtn.textContent="読み込み中…";
     await ensureLandmarker();
+    if(synthOn()) synth.ensure(); // start audio within the same user gesture (iOS)
     stream = await navigator.mediaDevices.getUserMedia({video:{width:{ideal:960},height:{ideal:720},facingMode:"user"},audio:false});
     video.srcObject=stream;
     await video.play();
@@ -452,6 +551,7 @@ function loop(){
 
   drawOverlay(draw);
   applyMappings(perHand, now);
+  if(synthOn() && synth.ready()) synth.update(perHand);
 }
 
 /* ================= Mapping application ================= */
@@ -463,9 +563,9 @@ function valueOf(c, perHand){
   return v; // 0..1
 }
 function applyMappings(perHand, now){
-  const on = outChk.checked && !!midiPort;
-  setPill(stOut, on, on?"ON":"OFF");
-  stOut.querySelector("b").textContent = on?"ON":"OFF";
+  const on = outChk.checked && !!midiPort && midiModeOn();
+  const anyOut = on || (synthOn() && synth.ready());
+  setPill(stOut, anyOut, anyOut?"ON":"OFF");
   const a=smooth.get();
   const gate = now-lastSendAt >= sendInterval;
 
@@ -608,7 +708,8 @@ function rebuildTable(){
 /* ================= Persistence ================= */
 function save(){
   const clean=config.map(({_sm,_last,_meter,_active,_noteState,_meterEl,_barEl,_valEl,...rest})=>rest);
-  localStorage.setItem(LS_KEY, JSON.stringify({rows:clean, smooth:smoothRange.value, rate:rateRange.value, chan:midiChan.value}));
+  localStorage.setItem(LS_KEY, JSON.stringify({rows:clean, smooth:smoothRange.value, rate:rateRange.value, chan:midiChan.value,
+    outMode:outMode.value, synWave:synWave.value, synScale:synScale.value, synBase:synBase.value, synVol:synVol.value}));
 }
 function load(){
   try{
@@ -619,6 +720,11 @@ function load(){
     if(o.smooth){ smoothRange.value=o.smooth; smoothVal.textContent=o.smooth; }
     if(o.rate){ rateRange.value=o.rate; rateVal.textContent=o.rate; sendInterval=1000/parseInt(o.rate,10); }
     if(o.chan!=null) midiChan.value=o.chan;
+    if(o.outMode) outMode.value=o.outMode;
+    if(o.synWave){ synWave.value=o.synWave; synth.wave=o.synWave; }
+    if(o.synScale){ synScale.value=o.synScale; synth.scaleName=o.synScale; }
+    if(o.synBase){ synBase.value=o.synBase; synth.base=parseInt(o.synBase,10)||48; }
+    if(o.synVol!=null){ synVol.value=o.synVol; synVolV.textContent=o.synVol; synth.vol=parseFloat(o.synVol); }
   }catch(e){ config=defaultConfig(); }
 }
 
@@ -633,6 +739,16 @@ stopBtn.onclick=stopCam;
 panicBtn.onclick=panic;
 midiOut.onchange=()=>setPort(midiOut.value);
 outChk.onchange=()=>{ if(!outChk.checked) panic(); };
+function updateSynthUI(){ synthOpts.style.display = synthOn()?"flex":"none"; }
+outMode.onchange=()=>{ updateSynthUI(); if(synthOn()) synth.ensure(); else synth.panic(); save(); };
+soundBtn.onclick=()=>{ const ok=synth.ensure();
+  if(outMode.value==="midi"){ outMode.value="synth"; updateSynthUI(); }
+  soundBtn.textContent = ok ? "🔊 音: 有効" : "🔇 非対応";
+  save(); };
+synWave.onchange=()=>{ synth.setWave(synWave.value); save(); };
+synScale.onchange=()=>{ synth.scaleName=synScale.value; save(); };
+synBase.onchange=()=>{ synth.base=parseInt(synBase.value,10)||48; save(); };
+synVol.oninput=()=>{ synVolV.textContent=synVol.value; synth.ensure(); synth.setVol(parseFloat(synVol.value)); save(); };
 smoothRange.oninput=()=>{ smoothVal.textContent=smoothRange.value; save(); };
 rateRange.oninput=()=>{ rateVal.textContent=rateRange.value; sendInterval=1000/parseInt(rateRange.value,10); save(); };
 const defCh=()=>parseInt(midiChan.value,10)||0;
@@ -658,6 +774,7 @@ $("themeBtn").onclick=()=>{
 for(let i=1;i<=16;i++){ const o=document.createElement("option"); o.value=i-1; o.textContent="Ch "+i; midiChan.appendChild(o); }
 load();
 video.style.transform = MIRROR()?"scaleX(-1)":"none";
+updateSynthUI();
 rebuildTable();
 rebuildMeters();
 initMIDI();
