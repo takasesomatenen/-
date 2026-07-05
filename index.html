@@ -312,7 +312,8 @@ function parseGcode(text){
     if(!zMap.has(curZ)){const o={segs:[],travels:[],z:curZ};zMap.set(curZ,o);zList.push(curZ);} return zMap.get(curZ);
   };
   for(const raw of lines){
-    if(raw.indexOf('PART START')>=0){mn.x=mn.y=mn.z=1e9;mx.x=mx.y=mx.z=-1e9;} // プライム/スカートを寸法から除外
+    if(raw.indexOf('PART START')>=0){mn.x=mn.y=mn.z=1e9;mx.x=mx.y=mx.z=-1e9; // プライム/スカートを寸法から除外
+      mkLayers.length=0; curMk=null;} // マーカー層モード: プライム分の余分な層を捨てる
     if(useMarkers && markerRe.test(raw.trim())){curMk={segs:[],travels:[]};mkLayers.push(curMk);}
     const line=raw.replace(/;.*$/,'').trim(); if(!line)continue;
     const parts=line.split(/\s+/), cmd=parts[0].toUpperCase();
@@ -381,10 +382,14 @@ function speedColor(f){
 function draw(){
   const {w,h}=sizeCanvas(); ctx.clearRect(0,0,w,h);
   const bx=num('bedX'), by=num('bedY');
-  const cx=bx/2, cy=by/2, cz=(model.layers.length?(model.min.z+model.max.z)/2:0);
+  const has=model.layers.length>0;
+  // 投影中心＝造形物の中心（無ければベッド中心）。フィットも造形物基準で寄せる。
+  const cx=has?(model.min.x+model.max.x)/2:bx/2,
+        cy=has?(model.min.y+model.max.y)/2:by/2,
+        cz=has?(model.min.z+model.max.z)/2:0;
   if(view.auto){
-    const span=Math.max(bx,by,(model.max.z-model.min.z)||1);
-    view.scale=Math.min(w,h)/(span*1.7); view.panX=0; view.panY=(view.el>1.4?0:-h*0.06);
+    const span=has?Math.max(model.max.x-model.min.x, model.max.y-model.min.y, model.max.z-model.min.z, 8):Math.max(bx,by);
+    view.scale=Math.min(w,h)/(span*1.9); view.panX=0; view.panY=(view.el>1.4?0:-h*0.04);
   }
   const ox=w/2+view.panX, oy=h/2+view.panY, s=view.scale;
   const pj=(x,y,z)=>project(x,y,z,cx,cy,cz,ox,oy,s);
