@@ -143,11 +143,19 @@
       <h2>プリセット / パターン</h2>
       <div class="field"><label>種類</label>
         <select id="preset">
-          <option value="wavy">波打つ壁（花瓶）</option>
-          <option value="spiral">らせん円柱（花瓶）</option>
-          <option value="circle">円柱（積層）</option>
-          <option value="square">角柱（積層）</option>
-          <option value="uwiggle">U字ウィグル</option>
+          <optgroup label="ベース形状">
+            <option value="wavy">波打つ壁（花瓶）</option>
+            <option value="spiral">らせん円柱（花瓶）</option>
+            <option value="circle">円柱（積層）</option>
+            <option value="square">角柱（積層）</option>
+          </optgroup>
+          <optgroup label="トリッキー（ノズルの動き）">
+            <option value="zzz">Zジグザグ（縦波）</option>
+            <option value="twist">ねじれ角柱</option>
+            <option value="lean">傾き積層（はみ出し）</option>
+            <option value="star">スターツイスト</option>
+            <option value="uwiggle">U字ウィグル（教材）</option>
+          </optgroup>
         </select>
       </div>
       <div class="field"><label>直径 / 辺 (mm)</label><input id="pDia" type="number" value="30"></div>
@@ -155,7 +163,8 @@
       <div class="field"><label>波の数</label><input id="pWaves" type="number" value="8"></div>
       <div class="field"><label>波の高さ (mm)</label><input id="pAmp" type="number" step="0.1" value="1.5"></div>
       <button class="btn sm block" id="btnGen">✦ このパターンを生成</button>
-      <p class="hint">半径を <code>R + A·sin(Nθ)</code> で波打たせて壁を作ります（写真のような凹凸）。「波の数 N」「波の高さ A」を変えて生成 → 右のG-codeをそのまま編集できます。</p>
+      <p class="hint"><b>ベース形状</b>は基本の柱/壁。<b>トリッキー</b>はノズルの動きで遊ぶ系：Zジグザグ（1周でZが上下＝立面ジグザグ）、ねじれ角柱、傾き積層（前層からはみ出す）、スターツイスト。<br>
+      共通で「直径・高さ」、<b>波の数</b>＝波/角/芒の数、<b>波の高さ</b>＝振幅/ずれ/ねじれ量。変えて「✦生成」→ 右のG-codeを直接編集できます。</p>
     </div>
     <div class="section">
       <h2>フィラメント / eSun PLA+</h2>
@@ -248,7 +257,7 @@
     読み込み、レイヤー単位で確認しながら<strong>直接編集</strong>し、そのまま書き出せます。</p>
     <p><b>基本の流れ</b><br>
     ① 右上「📂読込」で <code>.gcode</code> を開く（または「サンプル生成」）<br>
-    ② 中央3Dで確認：ドラッグで回転 / ホイールでズーム / スライダーで層送り<br>
+    ② 中央3Dで確認：ドラッグで回転 / ズーム（PC=ホイール, スマホ=2本指ピンチ）/ スライダーで層送り<br>
     ③ 右エディタで直いじり → 自動で3D再描画<br>
     ④「⬇ダウンロード」で保存 → SDカード or Bambu Studio へ</p>
     <p><b>プリセットで“パターン”を作る</b><br>
@@ -285,13 +294,21 @@ let model={layers:[],min:{x:1e9,y:1e9,z:1e9},max:{x:-1e9,y:-1e9,z:-1e9},eTotal:0
 
 function parseGcode(text){
   const lines=text.split(/\r?\n/);
+  // レイヤーマーカー(; LAYER / ;LAYER: / ;LAYER_CHANGE / ; CHANGE_LAYER)があれば
+  // それで層分けする。Zが層内で変化する非平面パターンでもスライダーが機能する。
+  const markerRe=/^;\s*(?:LAYER|CHANGE_LAYER|LAYER_CHANGE)\b/i;
+  const useMarkers=markerRe.test(text) || /\n\s*;\s*(?:LAYER|CHANGE_LAYER|LAYER_CHANGE)\b/i.test(text);
   let x=0,y=0,z=0,e=0,f=0,absPos=true,absE=true,curZ=0,lastPrintZ=null;
-  const layerMap=new Map(), layerZs=[];
+  const zMap=new Map(), zList=[], mkLayers=[]; let curMk=null;
   const mn={x:1e9,y:1e9,z:1e9}, mx={x:-1e9,y:-1e9,z:-1e9};
   let eTotal=0,timeSec=0,spMin=1e9,spMax=-1e9;
-  const layerFor=zz=>{ if(!layerMap.has(zz)){layerMap.set(zz,{z:zz,segs:[],travels:[]});layerZs.push(zz);} return layerMap.get(zz); };
+  const layerFor=()=>{
+    if(useMarkers){ if(!curMk){curMk={segs:[],travels:[]};mkLayers.push(curMk);} return curMk; }
+    if(!zMap.has(curZ)){const o={segs:[],travels:[],z:curZ};zMap.set(curZ,o);zList.push(curZ);} return zMap.get(curZ);
+  };
   for(const raw of lines){
     if(raw.indexOf('PART START')>=0){mn.x=mn.y=mn.z=1e9;mx.x=mx.y=mx.z=-1e9;} // プライム/スカートを寸法から除外
+    if(useMarkers && markerRe.test(raw.trim())){curMk={segs:[],travels:[]};mkLayers.push(curMk);}
     const line=raw.replace(/;.*$/,'').trim(); if(!line)continue;
     const parts=line.split(/\s+/), cmd=parts[0].toUpperCase();
     if(cmd==='G90'){absPos=true;continue;} if(cmd==='G91'){absPos=false;continue;}
@@ -308,15 +325,17 @@ function parseGcode(text){
     if(nf>0&&dist>0)timeSec+=dist/(nf/60);
     if(hasE&&de>1e-5&&dist>1e-4){
       if(nz!==lastPrintZ){curZ=nz;lastPrintZ=nz;}
-      layerFor(curZ).segs.push(x,y,z,nx,ny,nz,nf);
+      layerFor().segs.push(x,y,z,nx,ny,nz,nf);
       eTotal+=de; spMin=Math.min(spMin,nf); spMax=Math.max(spMax,nf);
       mn.x=Math.min(mn.x,x,nx);mn.y=Math.min(mn.y,y,ny);mn.z=Math.min(mn.z,z,nz);
       mx.x=Math.max(mx.x,x,nx);mx.y=Math.max(mx.y,y,ny);mx.z=Math.max(mx.z,z,nz);
-    }else if(dist>1e-4){ layerFor(curZ).travels.push(x,y,z,nx,ny,nz); }
+    }else if(dist>1e-4){ layerFor().travels.push(x,y,z,nx,ny,nz); }
     x=nx;y=ny;z=nz;e=ne;f=nf;
   }
-  layerZs.sort((a,b)=>a-b);
-  model={layers:layerZs.map(zz=>layerMap.get(zz)),min:mn,max:mx,eTotal,timeSec,
+  let layers;
+  if(useMarkers){ layers=mkLayers.filter(L=>L.segs.length||L.travels.length); }
+  else { zList.sort((a,b)=>a-b); layers=zList.map(zz=>zMap.get(zz)); }
+  model={layers,min:mn,max:mx,eTotal,timeSec,
     spMin:spMin<spMax?spMin:600, spMax:spMax>spMin?spMax:9000};
   const sl=$('layerSlider'); sl.max=Math.max(0,model.layers.length-1); sl.value=sl.max;
   updateStats(); draw();
@@ -403,12 +422,33 @@ function draw(){
   ctx.globalAlpha=1;
   $('layerLabel').textContent=`レイヤー ${model.layers.length?top+1:0} / ${model.layers.length}`;
 }
-// interaction
-let drag=null;
-cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2};view.auto=false;cv.setPointerCapture(e.pointerId);});
-cv.addEventListener('pointermove',e=>{ if(!drag)return; const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX;drag.y=e.clientY;
-  if(drag.pan){view.panX+=dx;view.panY+=dy;} else {view.az+=dx*0.01; view.el=Math.max(0.05,Math.min(1.55,view.el+dy*0.01));} draw();});
-cv.addEventListener('pointerup',()=>drag=null);
+// interaction: 1本指/マウスドラッグ=回転、Shift or 右ドラッグ=パン、
+//              2本指ピンチ=拡大縮小(スマホ)、ホイール=拡大縮小(PC)
+const pointers=new Map();
+let pinchPrev=0, pinchMid=null;
+const pinchDist=()=>{const p=[...pointers.values()]; return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);};
+const pinchMidpoint=()=>{const p=[...pointers.values()]; return {x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2};};
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId); view.auto=false;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===2){pinchPrev=pinchDist();pinchMid=pinchMidpoint();}
+});
+cv.addEventListener('pointermove',e=>{
+  const p=pointers.get(e.pointerId); if(!p)return;
+  const px=p.x, py=p.y; p.x=e.clientX; p.y=e.clientY;
+  if(pointers.size>=2){                       // 2本指: ピンチズーム + 中心移動でパン
+    const d=pinchDist(); if(pinchPrev>0) view.scale*=d/pinchPrev; pinchPrev=d;
+    const m=pinchMidpoint(); if(pinchMid){view.panX+=m.x-pinchMid.x; view.panY+=m.y-pinchMid.y;} pinchMid=m;
+    draw(); return;
+  }
+  const dx=e.clientX-px, dy=e.clientY-py;
+  if(e.shiftKey || e.buttons===2){view.panX+=dx;view.panY+=dy;}
+  else {view.az+=dx*0.01; view.el=Math.max(0.05,Math.min(1.55,view.el+dy*0.01));}
+  draw();
+});
+function endPtr(e){pointers.delete(e.pointerId); if(pointers.size<2){pinchPrev=0;pinchMid=null;}}
+cv.addEventListener('pointerup',endPtr);
+cv.addEventListener('pointercancel',endPtr);
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('wheel',e=>{e.preventDefault();view.auto=false;view.scale*=(e.deltaY<0?1.12:0.89);draw();},{passive:false});
 new ResizeObserver(()=>draw()).observe($('viewerCol'));
@@ -491,7 +531,7 @@ function genVase(amp){
   const steps=revs*spr;
   for(let s=1;s<=steps;s++){
     const rev=Math.floor((s-1)/spr), z=lh1+rev*lh;
-    if(rev!==curRev){curRev=rev; g+=`; --- 周回 ${rev} / Z${z.toFixed(3)} ---\nG1 Z${z.toFixed(3)} F1200\n`;}
+    if(rev!==curRev){curRev=rev; g+=`; LAYER ${rev} / Z${z.toFixed(3)}\nG1 Z${z.toFixed(3)} F1200\n`;}
     const th=s*dth, r=R+amp*Math.sin(N*th);
     const x=cx+r*Math.cos(th), y=cy+r*Math.sin(th);
     const e=extE(Math.hypot(x-px,y-py));
@@ -542,13 +582,84 @@ function genU(){
   }
   return g+endGcode();
 }
+// 閉ループ1層を書き出す小ヘルパー（pts=[[x,y],...] 最後は始点に戻す）
+function emitLoop(pts,l){
+  let g=`G1 X${pts[0][0].toFixed(3)} Y${pts[0][1].toFixed(3)} F${num('tspeed')*60}\n`;
+  for(let i=1;i<pts.length;i++){const e=extE(Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+    g+=`G1 X${pts[i][0].toFixed(3)} Y${pts[i][1].toFixed(3)} E${e.toFixed(5)} F${(l===0?num('pspeed1'):num('pspeed'))*60}\n`;}
+  return g;
+}
+// --- トリッキー系 ---
+// Zジグザグ: 1周する間にZを上下させる。立面で見るとノズルがジグザグに動く（非平面）。
+function genZWobble(){
+  const cx=CX(),cy=CY(),R=num('pDia')/2,lh=num('layerH'),lh1=num('layerH1');
+  const N=Math.max(1,Math.round(num('pWaves'))), zAmp=Math.max(0.2,num('pAmp')), spr=120;
+  let revs=Math.max(1,Math.round(num('pH')/lh)); if(revs*spr>14000)revs=Math.floor(14000/spr);
+  const dth=Math.PI*2/spr;
+  let g=startGcode()+'; PART START\n';
+  g+=`; ==== TRICK: Zジグザグ（縦波 / 非平面） ====\n`;
+  g+=`; 1周あたり ${N} 回、Z = baseZ + ${zAmp.toFixed(2)}*sin(${N}θ) で上下（立面がジグザグ）\n`;
+  let px=cx+R, py=cy;
+  g+=`G1 Z${(lh1+zAmp).toFixed(3)} F1200\nG1 X${px.toFixed(3)} Y${py.toFixed(3)} F${num('tspeed')*60}\n`;
+  for(let rev=0;rev<revs;rev++){
+    const baseZ=lh1+zAmp+rev*lh; g+=`; LAYER ${rev}\n`;
+    for(let i=1;i<=spr;i++){const th=i*dth, x=cx+R*Math.cos(th), y=cy+R*Math.sin(th), z=baseZ+zAmp*Math.sin(N*th);
+      const e=extE(Math.hypot(x-px,y-py));
+      g+=`G1 X${x.toFixed(3)} Y${y.toFixed(3)} Z${z.toFixed(3)} E${e.toFixed(5)} F${(rev===0?num('pspeed1'):num('pspeed'))*60}\n`;
+      px=x;py=y;}
+  }
+  return g+endGcode();
+}
+// ねじれ角柱: 層ごとに多角形を少し回す。角が下の層からはみ出してねじれる。
+function genTwist(){
+  const cx=CX(),cy=CY(),R=num('pDia')/2,lh=num('layerH'),lh1=num('layerH1');
+  const sides=Math.max(3,Math.round(num('pWaves'))), N=Math.max(1,Math.round(num('pH')/lh)), tw=num('pAmp')*0.02;
+  let g=startGcode()+'; PART START\n';
+  g+=`; ==== TRICK: ねじれ角柱（${sides}角 / 層ごとに${(tw*180/Math.PI).toFixed(1)}°回転） ====\n`;
+  g+=`; 「波の数」=角数、「波の高さ」=ねじれ量。角が下層からはみ出します。\n`;
+  for(let l=0;l<N;l++){const z=lh1+l*lh, rot=l*tw; g+=`; LAYER ${l}\nG1 Z${z.toFixed(3)} F1200\n`;
+    let pts=[]; for(let i=0;i<=sides;i++){const a=rot+i/sides*Math.PI*2; pts.push([cx+R*Math.cos(a),cy+R*Math.sin(a)]);}
+    g+=emitLoop(pts,l);}
+  return g+endGcode();
+}
+// 傾き積層: 層ごとに中心を横へずらす。前の層からはみ出して塔が傾く。
+function genLean(){
+  const cx=CX(),cy=CY(),R=num('pDia')/2,lh=num('layerH'),lh1=num('layerH1');
+  const N=Math.max(1,Math.round(num('pH')/lh)), step=num('pAmp')*0.25;
+  let g=startGcode()+'; PART START\n';
+  g+=`; ==== TRICK: 傾き積層（はみ出し / コーベル） ====\n`;
+  g+=`; 中心を1層ごとに ${step.toFixed(2)}mm 横へずらす（「波の高さ」で調整）。前層からはみ出て傾きます。\n`;
+  for(let l=0;l<N;l++){const z=lh1+l*lh, ox=cx+l*step; g+=`; LAYER ${l}\nG1 Z${z.toFixed(3)} F1200\n`;
+    let pts=[]; for(let i=0;i<=72;i++){const a=i/72*Math.PI*2; pts.push([ox+R*Math.cos(a),cy+R*Math.sin(a)]);}
+    g+=emitLoop(pts,l);}
+  return g+endGcode();
+}
+// スターツイスト: 星形の断面が層ごとに回転しながら上昇。
+function genStarTwist(){
+  const cx=CX(),cy=CY(),R=num('pDia')/2,lh=num('layerH'),lh1=num('layerH1');
+  const spikes=Math.max(3,Math.round(num('pWaves'))), amp=num('pAmp'), N=Math.max(1,Math.round(num('pH')/lh));
+  const spr=Math.max(80,spikes*12), tw=0.03;
+  let g=startGcode()+'; PART START\n';
+  g+=`; ==== TRICK: スターツイスト（${spikes}芒星が回転上昇） ====\n`;
+  g+=`; r(θ)=${R.toFixed(1)}+${amp.toFixed(2)}*cos(${spikes}θ) を層ごとに回転。\n`;
+  for(let l=0;l<N;l++){const z=lh1+l*lh, rot=l*tw; g+=`; LAYER ${l}\nG1 Z${z.toFixed(3)} F1200\n`;
+    let pts=[]; for(let i=0;i<=spr;i++){const a=i/spr*Math.PI*2, r=R+amp*Math.cos(spikes*a);
+      pts.push([cx+r*Math.cos(a+rot),cy+r*Math.sin(a+rot)]);}
+    g+=emitLoop(pts,l);}
+  return g+endGcode();
+}
 function genPreset(){
-  const k=$('preset').value;
-  if(k==='wavy')return genVase(num('pAmp'));
-  if(k==='spiral')return genVase(0);
-  if(k==='square')return genStack('square');
-  if(k==='uwiggle')return genU();
-  return genStack('circle');
+  switch($('preset').value){
+    case 'wavy':   return genVase(num('pAmp'));
+    case 'spiral': return genVase(0);
+    case 'square': return genStack('square');
+    case 'uwiggle':return genU();
+    case 'zzz':    return genZWobble();
+    case 'twist':  return genTwist();
+    case 'lean':   return genLean();
+    case 'star':   return genStarTwist();
+    default:       return genStack('circle');
+  }
 }
 
 /* ============ Wire up ============ */
