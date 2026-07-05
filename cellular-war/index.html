@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cellular War — 赤青セルオートマトン対戦</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --line:#30363d; --ink:#e6edf3; --muted:#8b949e;
+    --red:#ff5252; --red-dim:#8a2b2b; --blue:#4d9fff; --blue-dim:#26507f;
+    --accent:#f0c000;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;}
+  #app{display:flex;flex-direction:column;height:100%;}
+  header{display:flex;align-items:center;gap:14px;padding:8px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  header h1{font-size:15px;margin:0;letter-spacing:.5px}
+  header h1 .r{color:var(--red)} header h1 .b{color:var(--blue)}
+  .spacer{flex:1}
+  button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;
+    padding:6px 10px;font-size:13px;cursor:pointer}
+  button:hover{border-color:#4b5563}
+  button.on{border-color:var(--accent);color:var(--accent)}
+  main{display:flex;flex:1;min-height:0}
+  #stage{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:#07090d}
+  canvas{background:#07090d;image-rendering:pixelated;box-shadow:0 0 0 1px var(--line)}
+  #side{width:230px;border-left:1px solid var(--line);padding:12px;overflow-y:auto;background:var(--panel)}
+  .grp{margin-bottom:16px}
+  .grp h2{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 8px}
+  .bar{height:14px;border-radius:7px;background:#0a0d12;border:1px solid var(--line);overflow:hidden;position:relative}
+  .bar > i{display:block;height:100%;transition:width .1s linear}
+  .barlabel{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px}
+  .palette{display:grid;grid-template-columns:1fr;gap:6px}
+  .pbtn{display:flex;align-items:center;gap:8px;text-align:left;justify-content:flex-start}
+  .pbtn .k{font-size:10px;color:var(--muted);min-width:14px}
+  .pbtn .nm{flex:1}
+  .pbtn .cost{font-size:11px;color:var(--accent)}
+  .pbtn.sel{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+  .hint{font-size:11px;color:var(--muted);line-height:1.6}
+  kbd{background:#0a0d12;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:11px}
+  #banner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(5,7,11,.82);flex-direction:column;gap:14px;z-index:5;text-align:center}
+  #banner h2{font-size:34px;margin:0}
+  #popcount{display:flex;gap:10px;font-variant-numeric:tabular-nums;font-size:12px}
+  .pc{padding:2px 8px;border-radius:6px;border:1px solid var(--line)}
+  .pc.r{color:var(--red)} .pc.b{color:var(--blue)}
+  select{background:#0a0d12;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px}
+  label.row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:6px 0}
+  input[type=range]{width:100%}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1><span class="r">赤</span> vs <span class="b">青</span> · Cellular War</h1>
+    <div id="popcount">
+      <span class="pc r">赤 <b id="cntR">0</b></span>
+      <span class="pc b">青 <b id="cntB">0</b></span>
+      <span class="pc">世代 <b id="gen">0</b></span>
+    </div>
+    <div class="spacer"></div>
+    <button id="btnPlay">⏸ 一時停止</button>
+    <button id="btnStep">▷ 1手</button>
+    <button id="btnClear">✖ クリア</button>
+    <button id="btnCombat">接触戦闘: OFF</button>
+    <button id="btnAI">青AI: ON</button>
+  </header>
+  <main>
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div id="banner"><h2 id="bantxt"></h2><button id="btnRestart">もう一度</button></div>
+    </div>
+    <aside id="side">
+      <div class="grp">
+        <h2>あなた（赤）エナジー</h2>
+        <div class="barlabel"><span>ENERGY</span><span id="enTxt">0</span></div>
+        <div class="bar"><i id="enBar" style="background:var(--red);width:0%"></i></div>
+        <div class="barlabel" style="margin-top:6px"><span>配置クールダウン</span><span id="cdTxt">0.0s</span></div>
+        <div class="bar"><i id="cdBar" style="background:var(--accent);width:0%"></i></div>
+      </div>
+
+      <div class="grp">
+        <h2>配置ユニット（数字キー）</h2>
+        <div class="palette" id="palette"></div>
+      </div>
+
+      <div class="grp">
+        <h2>操作</h2>
+        <div class="hint">
+          左半分（自陣）にクリックで配置。<br>
+          <kbd>R</kbd> 回転 / <kbd>F</kbd> 反転<br>
+          <kbd>1〜7</kbd> ユニット選択<br>
+          <kbd>Space</kbd> 再生/停止<br>
+          グライダーや銃を敵陣へ撃ち込んで攻めよう。
+        </div>
+      </div>
+
+      <div class="grp">
+        <h2>設定</h2>
+        <label class="row">速度
+          <input id="speed" type="range" min="1" max="30" value="10">
+        </label>
+        <label class="row">AI強さ
+          <select id="ailv">
+            <option value="0.4">弱</option>
+            <option value="0.8" selected>中</option>
+            <option value="1.4">強</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grp">
+        <h2>ルール</h2>
+        <div class="hint">
+          誕生=近傍3・生存=近傍2/3（標準ライフ）。<br>
+          <b>誕生セルの色は親3個の多数決</b>。境界を押せば敵構造を自色に塗り替える。<br>
+          <b>接触戦闘ON</b>: 敵近傍が味方近傍より多いセルは死亡（接触で削り合い）。
+        </div>
+      </div>
+    </aside>
+  </main>
+</div>
+<script>
+"use strict";
+//========================================================
+// Cellular War — 2色ライフゲーム対戦（Immigration方式）
+//========================================================
+const COLS = 120, ROWS = 76, CELL = 8;
+const RED = 1, BLUE = 2;
+
+const cv = document.getElementById('cv');
+cv.width = COLS*CELL; cv.height = ROWS*CELL;
+const ctx = cv.getContext('2d');
+
+// grid: 0 empty / 1 red / 2 blue
+let grid = new Uint8Array(COLS*ROWS);
+let next = new Uint8Array(COLS*ROWS);
+const idx = (x,y)=> y*COLS + x;
+
+// ---- patterns (基準形。座標は[dx,dy]) ----
+// 赤は右(SE)方向、青は左方向へ進むよう配置時に回転する
+const P = {
+  single:  { name:'単体セル',   cost:2,  cd:0.15, cells:[[0,0]] },
+  block:   { name:'ブロック',   cost:5,  cd:0.4,  cells:[[0,0],[1,0],[0,1],[1,1]] },
+  blinker: { name:'点滅',       cost:6,  cd:0.4,  cells:[[0,0],[1,0],[2,0]] },
+  glider:  { name:'グライダー', cost:12, cd:0.8,  cells:[[1,0],[2,1],[0,2],[1,2],[2,2]] }, // SE進行
+  lwss:    { name:'宇宙船(LWSS)',cost:26, cd:1.4, cells:[[0,0],[3,0],[4,1],[0,2],[4,2],[1,3],[2,3],[3,3],[4,3]] }, // 右進行
+  eater:   { name:'イーター',   cost:18, cd:1.0,  cells:[[0,0],[1,0],[0,1],[2,1],[2,2],[2,3],[3,3]] }, // 静止・防壁/弾除け
+  gun:     { name:'グライダー銃',cost:95, cd:6.0, cells:gosper() }, // 連射兵器
+};
+const ORDER = ['single','block','blinker','glider','lwss','eater','gun'];
+
+function gosper(){
+  // Gosper glider gun（正準座標）。SE方向へグライダーを周期的に射出
+  return [
+    [0,4],[0,5],[1,4],[1,5],
+    [10,4],[10,5],[10,6],[11,3],[11,7],[12,2],[12,8],[13,2],[13,8],
+    [14,5],[15,3],[15,7],[16,4],[16,5],[16,6],[17,5],
+    [20,2],[20,3],[20,4],[21,2],[21,3],[21,4],[22,1],[22,5],
+    [24,0],[24,1],[24,5],[24,6],
+    [34,2],[34,3],[35,2],[35,3],
+  ];
+}
+
+// ---- pattern transform ----
+function normalize(cells){
+  let mx=Infinity,my=Infinity;
+  for(const[c,r]of cells){ if(c<mx)mx=c; if(r<my)my=r; }
+  return cells.map(([c,r])=>[c-mx,r-my]);
+}
+function rot90(cells){ return normalize(cells.map(([x,y])=>[-y,x])); }
+function flipH(cells){ return normalize(cells.map(([x,y])=>[-x,y])); }
+function mirrorForBlue(key){
+  // 青は赤のユニットを左右反転して左向きに撃つ
+  return flipH(P[key].cells);
+}
+
+// ---- players / economy ----
+const MAXEN = 120;
+const player = {
+  [RED]:  {energy: 60, cd:0, placed:false},
+  [BLUE]: {energy: 60, cd:0, placed:false},
+};
+
+// selection state (human = red)
+let selKey = 'glider';
+let selCells = P[selKey].cells.slice();
+let running = true;
+let combat = false;
+let aiOn = true;
+let aiLevel = 0.8;
+let stepsPerSec = 10;
+let generation = 0;
+let gameOver = false;
+
+// ================= simulation =================
+function stepSim(){
+  next.fill(0);
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      let n=0, r=0, b=0;
+      for(let dy=-1;dy<=1;dy++){
+        const yy=y+dy; if(yy<0||yy>=ROWS)continue;
+        for(let dx=-1;dx<=1;dx++){
+          if(dx===0&&dy===0)continue;
+          const xx=x+dx; if(xx<0||xx>=COLS)continue;
+          const v=grid[idx(xx,yy)];
+          if(v){ n++; if(v===RED)r++; else b++; }
+        }
+      }
+      const cur=grid[idx(x,y)];
+      let nv=0;
+      if(cur){                       // 生存判定
+        if(n===2||n===3) nv=cur;
+      }else{                         // 誕生判定
+        if(n===3) nv = (r>b)?RED:BLUE;   // 多数決着色（3は奇数なので同数なし）
+      }
+      next[idx(x,y)] = nv;
+    }
+  }
+
+  if(combat){
+    // 接触戦闘: 敵近傍 > 味方近傍 のセルは死亡（next基準で同時判定）
+    for(let y=0;y<ROWS;y++){
+      for(let x=0;x<COLS;x++){
+        const cur=next[idx(x,y)];
+        if(!cur)continue;
+        let friend=0,enemy=0;
+        for(let dy=-1;dy<=1;dy++){
+          const yy=y+dy; if(yy<0||yy>=ROWS)continue;
+          for(let dx=-1;dx<=1;dx++){
+            if(dx===0&&dy===0)continue;
+            const xx=x+dx; if(xx<0||xx>=COLS)continue;
+            const v=next[idx(xx,yy)];
+            if(!v)continue;
+            if(v===cur)friend++; else enemy++;
+          }
+        }
+        if(enemy>friend) grid[idx(x,y)] = 255; // 仮マーク（後で消す）
+        else grid[idx(x,y)] = 0;
+      }
+    }
+    // マークされたセルは死亡、それ以外はnextを採用
+    for(let i=0;i<grid.length;i++){
+      grid[i] = (grid[i]===255) ? 0 : next[i];
+    }
+  }else{
+    const t=grid; grid=next; next=t;
+  }
+  generation++;
+}
+
+// ================= placement =================
+function canPlaceAt(who, cells, ox, oy){
+  const midHome = COLS/2;
+  for(const[dx,dy]of cells){
+    const x=ox+dx, y=oy+dy;
+    if(x<0||x>=COLS||y<0||y>=ROWS) return false;
+    // 自陣制限: 赤は左半分、青は右半分にのみ配置可
+    if(who===RED  && x>=midHome) return false;
+    if(who===BLUE && x< midHome) return false;
+  }
+  return true;
+}
+function stamp(who, cells, ox, oy){
+  for(const[dx,dy]of cells){
+    const x=ox+dx, y=oy+dy;
+    if(x>=0&&x<COLS&&y>=0&&y<ROWS) grid[idx(x,y)] = who;
+  }
+}
+function tryPlace(who, key, cells, ox, oy){
+  const pl = player[who];
+  const def = P[key];
+  if(pl.cd>0) return false;
+  if(pl.energy < def.cost) return false;
+  if(!canPlaceAt(who, cells, ox, oy)) return false;
+  stamp(who, cells, ox, oy);
+  pl.energy -= def.cost;
+  pl.cd = def.cd;
+  pl.placed = true;
+  return true;
+}
+
+// ================= AI (blue) =================
+let aiTimer = 0;
+function aiThink(dt){
+  if(!aiOn) return;
+  const pl = player[BLUE];
+  aiTimer -= dt;
+  if(aiTimer>0) return;
+  aiTimer = 0.9 / aiLevel;                 // 強いほど頻繁
+  if(pl.cd>0 || pl.energy<12) return;
+
+  // 予算に応じて兵器選択
+  let key;
+  const r=hash(generation*2654435761>>>0);
+  if(pl.energy>=95 && r%5===0) key='gun';
+  else if(pl.energy>=26 && r%3===0) key='lwss';
+  else key='glider';
+
+  const cells = mirrorForBlue(key);
+  // 配置位置: 右半分。赤の重心ラインを狙って撃ち込む
+  const wpad = 3;
+  const x = (COLS-1) - bboxW(cells) - (wpad + (r%6));
+  const y = pickTargetRow(r);
+  tryPlace(BLUE, key, cells, x, y);
+}
+function bboxW(cells){ let m=0; for(const[x]of cells) if(x>m)m=x; return m; }
+function pickTargetRow(r){
+  // 赤セルの行分布から狙う。無ければランダム
+  let rows=[], any=false;
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){ if(grid[idx(x,y)]===RED){ rows.push(y); any=true; break; } }
+  }
+  if(any){ return Math.max(0, Math.min(ROWS-6, rows[r%rows.length]-2)); }
+  return 6 + (r % (ROWS-14));
+}
+// 決定論的な擬似乱数（Math.random不使用でも動くように）
+let _seed = 123456789;
+function hash(n){ _seed = (_seed*1103515245 + 12345 + n) & 0x7fffffff; return _seed; }
+
+// ================= render =================
+let mouse = {x:-1,y:-1,in:false};
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // 陣地の下地
+  ctx.fillStyle='rgba(255,82,82,0.04)'; ctx.fillRect(0,0,COLS/2*CELL,cv.height);
+  ctx.fillStyle='rgba(77,159,255,0.04)'; ctx.fillRect(COLS/2*CELL,0,COLS/2*CELL,cv.height);
+  // 中央ライン
+  ctx.strokeStyle='rgba(240,192,0,0.25)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(COLS/2*CELL,0); ctx.lineTo(COLS/2*CELL,cv.height); ctx.stroke();
+
+  // cells
+  for(let y=0;y<ROWS;y++){
+    for(let x=0;x<COLS;x++){
+      const v=grid[idx(x,y)];
+      if(!v)continue;
+      ctx.fillStyle = v===RED ? '#ff5252' : '#4d9fff';
+      ctx.fillRect(x*CELL, y*CELL, CELL-1, CELL-1);
+    }
+  }
+
+  // ghost preview
+  if(mouse.in && !gameOver){
+    const ox=mouse.x, oy=mouse.y;
+    const ok = player[RED].cd<=0 && player[RED].energy>=P[selKey].cost && canPlaceAt(RED, selCells, ox, oy);
+    ctx.fillStyle = ok ? 'rgba(255,82,82,0.55)' : 'rgba(200,200,200,0.25)';
+    for(const[dx,dy]of selCells){
+      const x=ox+dx, y=oy+dy;
+      if(x>=0&&x<COLS&&y>=0&&y<ROWS) ctx.fillRect(x*CELL,y*CELL,CELL-1,CELL-1);
+    }
+  }
+}
+
+// ================= HUD =================
+let cntR=0, cntB=0;
+function countCells(){
+  cntR=0;cntB=0;
+  for(let i=0;i<grid.length;i++){ const v=grid[i]; if(v===RED)cntR++; else if(v===BLUE)cntB++; }
+}
+function updateHUD(){
+  document.getElementById('cntR').textContent=cntR;
+  document.getElementById('cntB').textContent=cntB;
+  document.getElementById('gen').textContent=generation;
+  const pr=player[RED];
+  const enPct=Math.round(pr.energy/MAXEN*100);
+  document.getElementById('enBar').style.width=enPct+'%';
+  document.getElementById('enTxt').textContent=Math.floor(pr.energy)+' / '+MAXEN;
+  const cdMax = P[selKey].cd || 1;
+  const cdPct = Math.max(0,Math.min(100, pr.cd/ (cdMax||1) *100));
+  document.getElementById('cdBar').style.width=cdPct+'%';
+  document.getElementById('cdTxt').textContent=pr.cd.toFixed(1)+'s';
+}
+
+// ================= win check =================
+function checkWin(){
+  if(gameOver) return;
+  const rP=player[RED].placed, bP=player[BLUE].placed;
+  if(!(rP&&bP)) return;
+  if(cntR===0 && cntB===0){ endGame('引き分け（相打ち）','#e6edf3'); }
+  else if(cntR===0){ endGame('青の勝利！','#4d9fff'); }
+  else if(cntB===0){ endGame('赤の勝利！','#ff5252'); }
+}
+function endGame(txt,color){
+  gameOver=true; running=false;
+  const b=document.getElementById('banner');
+  const t=document.getElementById('bantxt');
+  t.textContent=txt; t.style.color=color;
+  b.style.display='flex';
+  document.getElementById('btnPlay').textContent='▶ 再生';
+}
+
+// ================= main loop =================
+let last=performance.now(), acc=0;
+function loop(now){
+  const dt=Math.min(0.1,(now-last)/1000); last=now;
+
+  // エナジー回復
+  for(const who of [RED,BLUE]){
+    const pl=player[who];
+    pl.energy=Math.min(MAXEN, pl.energy + 7*dt);
+    if(pl.cd>0) pl.cd=Math.max(0, pl.cd-dt);
+  }
+  if(!gameOver) aiThink(dt);
+
+  if(running && !gameOver){
+    acc += dt;
+    const stepT = 1/stepsPerSec;
+    let iter=0;
+    while(acc>=stepT && iter<4){ stepSim(); acc-=stepT; iter++; }
+  }
+  countCells();
+  checkWin();
+  draw();
+  updateHUD();
+  requestAnimationFrame(loop);
+}
+
+// ================= input =================
+function cellFromEvent(e){
+  const r=cv.getBoundingClientRect();
+  const sx=cv.width/r.width, sy=cv.height/r.height;
+  const x=Math.floor((e.clientX-r.left)*sx/CELL);
+  const y=Math.floor((e.clientY-r.top)*sy/CELL);
+  return {x,y};
+}
+cv.addEventListener('mousemove',e=>{ const c=cellFromEvent(e); mouse.x=c.x;mouse.y=c.y;mouse.in=true; });
+cv.addEventListener('mouseleave',()=>{ mouse.in=false; });
+cv.addEventListener('mousedown',e=>{
+  if(gameOver)return;
+  const c=cellFromEvent(e);
+  // グライダー等は中心よりやや上に寄せて配置
+  tryPlace(RED, selKey, selCells, c.x, c.y);
+});
+
+function selectKey(key){
+  selKey=key; selCells=P[key].cells.slice();
+  document.querySelectorAll('.pbtn').forEach(el=>{
+    el.classList.toggle('sel', el.dataset.key===key);
+  });
+}
+window.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k===' '){ e.preventDefault(); togglePlay(); }
+  else if(k==='r'){ selCells=rot90(selCells); }
+  else if(k==='f'){ selCells=flipH(selCells); }
+  else if(k>='1'&&k<='7'){ const i=+k-1; if(ORDER[i]) selectKey(ORDER[i]); }
+});
+
+// ================= palette UI =================
+const pal=document.getElementById('palette');
+ORDER.forEach((key,i)=>{
+  const d=P[key];
+  const btn=document.createElement('button');
+  btn.className='pbtn'+(key===selKey?' sel':'');
+  btn.dataset.key=key;
+  btn.innerHTML=`<span class="k">${i+1}</span><span class="nm">${d.name}</span><span class="cost">${d.cost}</span>`;
+  btn.onclick=()=>selectKey(key);
+  pal.appendChild(btn);
+});
+
+// ================= buttons =================
+function togglePlay(){
+  if(gameOver)return;
+  running=!running;
+  document.getElementById('btnPlay').textContent = running?'⏸ 一時停止':'▶ 再生';
+}
+document.getElementById('btnPlay').onclick=togglePlay;
+document.getElementById('btnStep').onclick=()=>{ if(!gameOver){ stepSim(); } };
+document.getElementById('btnClear').onclick=()=>{ grid.fill(0); generation=0; };
+document.getElementById('btnCombat').onclick=e=>{
+  combat=!combat;
+  e.target.textContent='接触戦闘: '+(combat?'ON':'OFF');
+  e.target.classList.toggle('on',combat);
+};
+document.getElementById('btnAI').onclick=e=>{
+  aiOn=!aiOn;
+  e.target.textContent='青AI: '+(aiOn?'ON':'OFF');
+};
+document.getElementById('speed').oninput=e=>{ stepsPerSec=+e.target.value; };
+document.getElementById('ailv').onchange=e=>{ aiLevel=+e.target.value; };
+document.getElementById('btnRestart').onclick=()=>resetGame();
+
+function resetGame(){
+  grid.fill(0); next.fill(0); generation=0; gameOver=false; running=true;
+  player[RED].energy=60; player[RED].cd=0; player[RED].placed=false;
+  player[BLUE].energy=60; player[BLUE].cd=0; player[BLUE].placed=false;
+  aiTimer=0;
+  document.getElementById('banner').style.display='none';
+  document.getElementById('btnPlay').textContent='⏸ 一時停止';
+}
+
+// start
+selectKey('glider');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
