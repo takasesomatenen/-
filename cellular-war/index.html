@@ -113,9 +113,9 @@
         </label>
         <label class="row">AI強さ
           <select id="ailv">
-            <option value="0.4">弱</option>
-            <option value="0.8" selected>中</option>
-            <option value="1.4">強</option>
+            <option value="easy">弱</option>
+            <option value="mid" selected>中</option>
+            <option value="hard">強</option>
           </select>
         </label>
       </div>
@@ -203,7 +203,9 @@ let selCells = P[selKey].cells.slice();
 let running = true;
 let combat = false;
 let aiOn = true;
-let aiLevel = 0.8;
+let aiLevel = 0.9;        // AI配置頻度（大きいほど頻繁）
+let aiEnergyMul = 1.2;    // AIのエナジー回復倍率。SEグライダー鏡像の衝突非対称で
+                         // 生じる赤側の構造的有利（AI対AIで約11:5）を補正し、中で概ね五分に。
 let stepsPerSec = 10;
 let generation = 0;
 let gameOver = false;
@@ -464,10 +466,11 @@ let last=performance.now(), acc=0;
 function loop(now){
   const dt=Math.min(0.1,(now-last)/1000); last=now;
 
-  // エナジー回復
+  // エナジー回復（AIには難易度に応じた補正倍率をかける）
   for(const who of [RED,BLUE]){
     const pl=player[who];
-    pl.energy=Math.min(MAXEN, pl.energy + 7*dt);
+    const regen = (who===BLUE && aiOn) ? 7*aiEnergyMul : 7;
+    pl.energy=Math.min(MAXEN, pl.energy + regen*dt);
     if(pl.cd>0) pl.cd=Math.max(0, pl.cd-dt);
   }
   if(!gameOver) aiThink(dt);
@@ -552,7 +555,14 @@ document.getElementById('btnAI').onclick=e=>{
   e.target.textContent='青AI: '+(aiOn?'ON':'OFF');
 };
 document.getElementById('speed').oninput=e=>{ stepsPerSec=+e.target.value; };
-document.getElementById('ailv').onchange=e=>{ aiLevel=+e.target.value; };
+const AI_DIFF = {
+  easy: {level:0.5, energy:1.0},   // 構造的な赤有利を残す＝人間が勝ちやすい
+  mid:  {level:0.9, energy:1.2},   // 概ね五分
+  hard: {level:1.4, energy:1.45},  // AIが手数もエナジーも上
+};
+document.getElementById('ailv').onchange=e=>{
+  const d=AI_DIFF[e.target.value]||AI_DIFF.mid; aiLevel=d.level; aiEnergyMul=d.energy;
+};
 document.getElementById('btnRestart').onclick=()=>resetGame();
 
 function resetGame(){
