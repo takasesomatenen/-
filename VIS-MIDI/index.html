@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIS-MIDI — Hand Tracking MIDI Controller</title>
+<style>
+  :root{
+    --bg:#0d0e10; --panel:#141619; --panel2:#1a1d22; --line:#2a2d34;
+    --text:#e9eaed; --muted:#969aa3; --ink:#f3f4f6; --ink-soft:#c7cad0;
+    --focus:#8a8f99; --accent:#5ac8fa; --accent2:#7cf29c; --warn:#ffcf5a; --bad:#ff6b6b;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f5f6f8; --panel:#ffffff; --panel2:#f0f2f4; --line:#dde0e5;
+      --text:#181a1e; --muted:#646973; --ink:#181a1e; --ink-soft:#3a3e46;
+      --focus:#4a4f59; --accent:#0a84c8; --accent2:#1a9e4b; --warn:#b57e00; --bad:#d84040;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0d0e10; --panel:#141619; --panel2:#1a1d22; --line:#2a2d34;
+    --text:#e9eaed; --muted:#969aa3; --ink:#f3f4f6; --ink-soft:#c7cad0; --focus:#8a8f99;
+    --accent:#5ac8fa; --accent2:#7cf29c; --warn:#ffcf5a; --bad:#ff6b6b;
+  }
+  :root[data-theme="light"]{
+    --bg:#f5f6f8; --panel:#ffffff; --panel2:#f0f2f4; --line:#dde0e5;
+    --text:#181a1e; --muted:#646973; --ink:#181a1e; --ink-soft:#3a3e46; --focus:#4a4f59;
+    --accent:#0a84c8; --accent2:#1a9e4b; --warn:#b57e00; --bad:#d84040;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans JP",sans-serif;font-size:14px}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-radius:4px}
+  header{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--panel);
+    border-bottom:1px solid var(--line);flex-wrap:wrap;position:sticky;top:0;z-index:5}
+  header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px;display:flex;align-items:center;gap:9px}
+  header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 25%,transparent)}
+  header h1 .dot.live{background:var(--accent2);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent2) 25%,transparent)}
+  header .sub{color:var(--muted);font-size:12px}
+  .badge{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted)}
+  .spacer{flex:1}
+  button{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);
+    border-radius:8px;padding:7px 13px;cursor:pointer;transition:.12s;font-weight:550}
+  button:hover{border-color:var(--focus)}
+  button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  button.primary:hover{opacity:.9}
+  button.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  select,input[type=number],input[type=text]{font:inherit;color:var(--text);background:var(--panel);
+    border:1px solid var(--line);border-radius:7px;padding:6px 8px}
+  select:hover,input:hover{border-color:var(--focus)}
+  main{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.05fr);gap:14px;padding:14px;align-items:start}
+  @media (max-width:920px){ main{grid-template-columns:1fr} }
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .card>h2{font-size:12.5px;font-weight:650;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);
+    margin:0;padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+  .card .body{padding:14px}
+  /* video stage */
+  .stage{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:10px;overflow:hidden}
+  .stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .stage video{transform:scaleX(-1)}
+  .stage .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--muted);font-size:13px;text-align:center;padding:20px;flex-direction:column;gap:10px}
+  .stage .fps{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.55);color:#fff;
+    font:11px/1 var(--mono);padding:4px 7px;border-radius:6px;letter-spacing:.3px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.3px}
+  /* meters */
+  .meters{display:flex;flex-direction:column;gap:8px}
+  .meter{display:grid;grid-template-columns:215px 1fr 42px;gap:10px;align-items:center}
+  @media (max-width:520px){ .meter{grid-template-columns:130px 1fr 36px} }
+  .meter .name{font-size:12px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meter .name b{color:var(--muted);font-weight:600;font-size:11px}
+  .meter .bar{height:9px;background:var(--panel2);border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .meter .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .05s linear}
+  .meter .val{font:12px/1 var(--mono);color:var(--ink);text-align:right}
+  .meter.trig .bar i{background:var(--warn)}
+  .meter.off{opacity:.35}
+  /* mapping table */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+  td select,td input{padding:5px 6px;font-size:12.5px}
+  td input[type=number]{width:58px}
+  td .chk{width:16px;height:16px;accent-color:var(--accent)}
+  td.rm button{padding:3px 8px;font-size:12px;line-height:1}
+  .tag{display:inline-block;font:10px/1 var(--mono);padding:3px 6px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+  .note{color:var(--muted);font-size:12px;line-height:1.55}
+  .note code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px;border:1px solid var(--line)}
+  details{border:1px solid var(--line);border-radius:10px;background:var(--panel2);margin-top:12px}
+  details>summary{cursor:pointer;padding:10px 12px;font-weight:600;font-size:12.5px;list-style:none}
+  details>summary::-webkit-details-marker{display:none}
+  details>summary::before{content:"▸ ";color:var(--muted)}
+  details[open]>summary::before{content:"▾ "}
+  details .inner{padding:0 14px 14px}
+  .kbd{font:11px/1 var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:2px 5px;background:var(--panel)}
+  .statusline{font-size:12px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;padding:9px 14px;border-top:1px solid var(--line);background:var(--panel2)}
+  .statusline b{color:var(--ink-soft);font-weight:600}
+  .pill{display:inline-flex;align-items:center;gap:6px}
+  .pill .d{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .pill.ok .d{background:var(--accent2)} .pill.no .d{background:var(--bad)}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="dot" id="liveDot"></span>VIS-MIDI</h1>
+  <span class="sub">手のトラッキングで Ableton を操る MIDI コントローラー</span>
+  <span class="spacer"></span>
+  <span class="badge" id="midiBadge">MIDI: 未接続</span>
+  <button id="themeBtn" title="テーマ切替">◐</button>
+</header>
+
+<main>
+  <!-- LEFT: camera + meters -->
+  <section class="card">
+    <h2>📷 カメラ / トラッキング</h2>
+    <div class="body">
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div class="hint" id="camHint">
+          <div style="font-size:34px">🖐️</div>
+          <div>「カメラ開始」を押すとトラッキングが始まります。<br>初回はブラウザのカメラ許可が必要です。</div>
+        </div>
+        <div class="fps" id="fps" style="display:none">-- fps</div>
+      </div>
+
+      <div class="toolbar">
+        <button id="startBtn" class="primary">▶ カメラ開始</button>
+        <button id="stopBtn" disabled>■ 停止</button>
+        <label class="pill" style="margin-left:4px"><input type="checkbox" id="mirrorChk" checked> ミラー表示</label>
+        <label class="pill"><input type="checkbox" id="skelChk" checked> 骨格描画</label>
+        <span class="spacer"></span>
+        <button id="panicBtn" class="danger" title="全ノートオフ / 出力リセット">⏹ Panic</button>
+      </div>
+
+      <div class="meters" id="meters" style="margin-top:14px"></div>
+    </div>
+    <div class="statusline">
+      <span class="pill" id="stCam"><span class="d"></span>カメラ <b>停止</b></span>
+      <span class="pill" id="stHands"><span class="d"></span>検出 <b>0</b> 手</span>
+      <span class="pill" id="stOut"><span class="d"></span>送信 <b>OFF</b></span>
+    </div>
+  </section>
+
+  <!-- RIGHT: MIDI + mapping -->
+  <section class="card">
+    <h2>🎛 MIDI 出力 &amp; マッピング</h2>
+    <div class="body">
+      <div class="row">
+        <div class="field" style="flex:1;min-width:180px">
+          <label>出力先 MIDI ポート</label>
+          <select id="midiOut"><option value="">— Web MIDI 未初期化 —</option></select>
+        </div>
+        <div class="field">
+          <label>MIDI Ch（既定）</label>
+          <select id="midiChan"></select>
+        </div>
+        <div class="field" style="justify-content:flex-end">
+          <label>&nbsp;</label>
+          <label class="pill" style="padding:6px 0"><input type="checkbox" id="outChk"> <b style="font-weight:600">送信ON</b></label>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div class="field" style="flex:1">
+          <label>スムージング（ジッタ抑制）: <span id="smoothVal">0.35</span></label>
+          <input type="range" id="smoothRange" min="0" max="0.92" step="0.01" value="0.35" style="width:100%">
+        </div>
+        <div class="field" style="flex:1">
+          <label>送信レート上限: <span id="rateVal">60</span> msg/s</label>
+          <input type="range" id="rateRange" min="10" max="120" step="5" value="60" style="width:100%">
+        </div>
+      </div>
+
+      <table style="margin-top:14px">
+        <thead>
+          <tr>
+            <th style="width:34px">有効</th>
+            <th>ソース（手 / 指標）</th>
+            <th>種別</th>
+            <th>CC/Note</th>
+            <th>Ch</th>
+            <th style="width:34px" title="反転">↕</th>
+            <th style="width:34px"></th>
+          </tr>
+        </thead>
+        <tbody id="mapBody"></tbody>
+      </table>
+      <div class="row" style="margin-top:10px">
+        <button id="addCtrlBtn">＋ CC を追加</button>
+        <button id="addNoteBtn">＋ ノート（ジェスチャ）を追加</button>
+        <span class="spacer"></span>
+        <button id="resetMapBtn">既定に戻す</button>
+      </div>
+
+      <details style="margin-top:14px">
+        <summary>指標（メトリクス）の説明</summary>
+        <div class="inner note">
+          <ul style="padding-left:18px;margin:8px 0">
+            <li><b>X / Y</b> — 手のひら（第3中手骨）の横・縦位置。上に上げるほど Y=大。</li>
+            <li><b>Pinch</b> — 親指と人差し指の距離。つまむ＝小 → 開く＝大。</li>
+            <li><b>Spread</b> — 手の開き具合（グー=小 / パー=大）。</li>
+            <li><b>Tilt</b> — 手のひらの傾き（ロール角）。</li>
+          </ul>
+          ノート行は <b>Pinch</b> がしきい値より小さくなった瞬間に Note On、離すと Note Off を送ります（つまみでトリガー）。
+        </div>
+      </details>
+
+      <details>
+        <summary>Ableton へのつなぎ方</summary>
+        <div class="inner note">
+          <ol style="padding-left:18px;margin:8px 0">
+            <li><b>仮想 MIDI ポートを用意</b><br>
+              macOS: <code>Audio MIDI設定 › IACドライバ</code> を有効化。<br>
+              Windows: <code>loopMIDI</code>（無料）でポートを1つ作成。</li>
+            <li>上の「出力先 MIDI ポート」でそのポートを選び、<b>送信ON</b>。</li>
+            <li>Ableton の <code>環境設定 › Link/MIDI</code> で、その入力ポートの
+              <b>「トラック」「リモート」</b>を ON。</li>
+            <li>Ableton 右上 <b>MIDIマップモード</b>（<span class="kbd">⌘/Ctrl+M</span>）→ 動かしたいノブを選択
+              → 実際に手を動かすと CC が学習されます。</li>
+          </ol>
+          <b>※ Web MIDI と カメラは安全なコンテキストが必要です。</b>
+          <code>localhost</code> か <code>https</code> で開いてください
+          （ローカルなら例: <code>python3 -m http.server</code> → <code>http://localhost:8000/VIS-MIDI/</code>）。
+          対応ブラウザは Chrome / Edge を推奨。
+        </div>
+      </details>
+    </div>
+    <div class="statusline">
+      <span>設定は自動保存されます（この端末のブラウザ内）。</span>
+    </div>
+  </section>
+</main>
+
+<script>
+/* MediaPipe (HandLandmarker/FilesetResolver) is loaded lazily on camera start,
+   so the rest of the UI (MIDI, mapping table) works even if the CDN is slow/blocked. */
+const MP_URL="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+let HandLandmarker=null, FilesetResolver=null;
+
+/* ---------------- DOM ---------------- */
+const $ = (id)=>document.getElementById(id);
+const video=$("video"), overlay=$("overlay"), octx=overlay.getContext("2d");
+const stage=$("stage"), camHint=$("camHint"), fpsEl=$("fps"), liveDot=$("liveDot");
+const startBtn=$("startBtn"), stopBtn=$("stopBtn"), panicBtn=$("panicBtn");
+const mirrorChk=$("mirrorChk"), skelChk=$("skelChk");
+const midiOut=$("midiOut"), midiChan=$("midiChan"), outChk=$("outChk"), midiBadge=$("midiBadge");
+const smoothRange=$("smoothRange"), smoothVal=$("smoothVal"), rateRange=$("rateRange"), rateVal=$("rateVal");
+const mapBody=$("mapBody"), metersEl=$("meters");
+const stCam=$("stCam"), stHands=$("stHands"), stOut=$("stOut");
+
+/* ---------------- State ---------------- */
+const LS_KEY="vismidi.config.v1";
+let landmarker=null, running=false, stream=null, rafId=0;
+let lastVideoTime=-1, fpsEMA=0, lastFrameTs=0;
+const MIRROR = ()=>mirrorChk.checked;
+
+let midiAccess=null, midiPort=null;
+const smooth = { get: ()=>parseFloat(smoothRange.value) };
+let sendInterval = 1000/parseInt(rateRange.value,10);
+let lastSendAt = 0;
+
+// config = ordered list of control rows
+let config = null;
+
+/* ---------------- Default mapping ---------------- */
+function defaultConfig(){
+  return [
+    {id:uid(), on:true,  kind:"cc", hand:"Right", metric:"y",      cc:1,  ch:0, invert:false}, // Mod
+    {id:uid(), on:true,  kind:"cc", hand:"Right", metric:"x",      cc:2,  ch:0, invert:false}, // Breath
+    {id:uid(), on:true,  kind:"cc", hand:"Right", metric:"pinch",  cc:11, ch:0, invert:false}, // Expression
+    {id:uid(), on:true,  kind:"cc", hand:"Left",  metric:"y",      cc:74, ch:0, invert:false}, // Cutoff
+    {id:uid(), on:true,  kind:"cc", hand:"Left",  metric:"spread", cc:71, ch:0, invert:false}, // Reso
+    {id:uid(), on:false, kind:"cc", hand:"Left",  metric:"tilt",   cc:10, ch:0, invert:false}, // Pan
+    {id:uid(), on:false, kind:"note", hand:"Left", metric:"pinch", note:60, ch:0, thresh:0.28, vel:100},
+  ];
+}
+function uid(){ return "c"+Math.floor(performance.now()*1000%1e9)+Math.floor(Math.random()*1000); }
+
+/* ---------------- Metric labels ---------------- */
+const METRICS = {
+  x:"X（横位置）", y:"Y（高さ）", pinch:"Pinch（つまみ）", spread:"Spread（開き）", tilt:"Tilt（傾き）"
+};
+const CC_NAMES = {1:"Mod",2:"Breath",7:"Volume",10:"Pan",11:"Expression",71:"Resonance",74:"Cutoff",91:"Reverb",93:"Chorus"};
+const NOTE_NAMES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const noteName=(n)=> NOTE_NAMES[((n%12)+12)%12]+(Math.floor(n/12)-1);
+
+/* ================= MIDI ================= */
+async function initMIDI(){
+  if(!navigator.requestMIDIAccess){
+    midiBadge.textContent="MIDI: 非対応ブラウザ"; midiBadge.style.color="var(--bad)";
+    midiOut.innerHTML='<option value="">Web MIDI 非対応（Chrome/Edge 推奨）</option>'; return;
+  }
+  try{
+    midiAccess = await navigator.requestMIDIAccess({sysex:false});
+    midiAccess.onstatechange = refreshPorts;
+    refreshPorts();
+  }catch(e){
+    midiBadge.textContent="MIDI: 許可されず"; midiBadge.style.color="var(--bad)";
+    console.warn("MIDI access failed",e);
+  }
+}
+function refreshPorts(){
+  if(!midiAccess) return;
+  const outs=[...midiAccess.outputs.values()];
+  const prev = midiPort ? midiPort.id : localStorage.getItem("vismidi.port");
+  midiOut.innerHTML="";
+  if(outs.length===0){
+    midiOut.innerHTML='<option value="">— 出力ポートなし（IAC/loopMIDI を作成）—</option>';
+    midiPort=null; updateMidiBadge(); return;
+  }
+  for(const o of outs){
+    const opt=document.createElement("option");
+    opt.value=o.id; opt.textContent=o.name; midiOut.appendChild(opt);
+  }
+  const pick = outs.find(o=>o.id===prev) || outs[0];
+  midiOut.value = pick.id; setPort(pick.id);
+}
+function setPort(id){
+  midiPort = midiAccess ? midiAccess.outputs.get(id) : null;
+  if(midiPort) localStorage.setItem("vismidi.port", id);
+  updateMidiBadge();
+}
+function updateMidiBadge(){
+  if(midiPort){ midiBadge.textContent="MIDI: "+midiPort.name; midiBadge.style.color="var(--accent2)"; }
+  else { midiBadge.textContent="MIDI: 未接続"; midiBadge.style.color="var(--muted)"; }
+}
+function sendCC(ch,cc,val){ if(midiPort) midiPort.send([0xB0|(ch&0x0f), cc&0x7f, val&0x7f]); }
+function sendNoteOn(ch,note,vel){ if(midiPort) midiPort.send([0x90|(ch&0x0f), note&0x7f, vel&0x7f]); }
+function sendNoteOff(ch,note){ if(midiPort) midiPort.send([0x80|(ch&0x0f), note&0x7f, 0]); }
+function panic(){
+  if(!midiPort) return;
+  for(let ch=0;ch<16;ch++){ midiPort.send([0xB0|ch,123,0]); midiPort.send([0xB0|ch,120,0]); }
+  for(const c of config) if(c.kind==="note") c._noteState=false;
+}
+
+/* ================= Camera + Landmarker ================= */
+async function ensureLandmarker(){
+  if(landmarker) return;
+  if(!HandLandmarker){
+    const vision = await import(MP_URL);   // dynamic import; only when starting camera
+    HandLandmarker=vision.HandLandmarker; FilesetResolver=vision.FilesetResolver;
+  }
+  const files = await FilesetResolver.forVisionTasks(MP_URL+"/wasm");
+  landmarker = await HandLandmarker.createFromOptions(files,{
+    baseOptions:{
+      modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      delegate:"GPU"
+    },
+    runningMode:"VIDEO", numHands:2, minHandDetectionConfidence:0.6,
+    minHandPresenceConfidence:0.5, minTrackingConfidence:0.5
+  });
+}
+async function startCam(){
+  startBtn.disabled=true;
+  try{
+    startBtn.textContent="読み込み中…";
+    await ensureLandmarker();
+    stream = await navigator.mediaDevices.getUserMedia({video:{width:{ideal:960},height:{ideal:720},facingMode:"user"},audio:false});
+    video.srcObject=stream;
+    await video.play();
+    overlay.width=video.videoWidth; overlay.height=video.videoHeight;
+    running=true; camHint.style.display="none"; fpsEl.style.display="block";
+    liveDot.classList.add("live");
+    startBtn.textContent="▶ カメラ開始"; stopBtn.disabled=false;
+    setPill(stCam,true,"稼働");
+    loop();
+  }catch(e){
+    console.error(e);
+    camHint.innerHTML='<div style="font-size:30px">⚠️</div><div>カメラを開始できませんでした。<br>'+
+      escapeHtml(e.message||String(e))+'<br><span class="note">localhost または https で開いていますか？</span></div>';
+    startBtn.disabled=false; startBtn.textContent="▶ カメラ開始";
+  }
+}
+function stopCam(){
+  running=false; if(rafId) cancelAnimationFrame(rafId);
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  video.srcObject=null; octx.clearRect(0,0,overlay.width,overlay.height);
+  camHint.style.display="flex"; fpsEl.style.display="none"; liveDot.classList.remove("live");
+  stopBtn.disabled=true; startBtn.disabled=false;
+  setPill(stCam,false,"停止"); setPill(stHands,false,"0");
+  stHands.querySelector("b").textContent="0";
+  panic();
+}
+
+/* ================= Landmark geometry ================= */
+const D=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+function handSize(lm){ return Math.max(1e-4, D(lm[0],lm[9])); } // wrist→middle MCP
+function clamp01(v){ return v<0?0:v>1?1:v; }
+function invLerp(v,a,b){ return clamp01((v-a)/(b-a)); }
+
+// returns object of metric→0..1 for one hand's landmarks (normalized coords, y down)
+function metricsFor(lm){
+  const s=handSize(lm);
+  const px=lm[9].x, py=lm[9].y;
+  const x = MIRROR()? (1-px) : px;
+  const y = 1-py;
+  const pinch = invLerp(D(lm[4],lm[8])/s, 0.12, 1.05);
+  // spread: mean fingertip distance from wrist, normalized by hand size
+  const tips=[8,12,16,20];
+  let sp=0; for(const t of tips) sp+=D(lm[t],lm[0])/s; sp/=tips.length;
+  const spread = invLerp(sp, 1.05, 2.05);
+  // tilt: roll angle of palm (wrist→middle MCP) mapped to 0..1
+  let ang=Math.atan2(lm[9].y-lm[0].y, lm[9].x-lm[0].x); // -PI..PI, up ≈ -PI/2
+  let deg = ang*180/Math.PI + 90;          // 0 when hand points up
+  if(MIRROR()) deg=-deg;
+  const tilt = invLerp(deg, -70, 70);
+  return {x:clamp01(x),y:clamp01(y),pinch,spread,tilt};
+}
+// resolve MediaPipe handedness to user-facing "Right"/"Left" (accounts for mirror)
+function faceHand(cat){
+  // MediaPipe labels as if selfie-mirrored; when we mirror the display it matches user perception,
+  // when not mirrored we swap so labels track the on-screen side the user expects.
+  const raw = cat; // "Left" | "Right"
+  return MIRROR()? raw : (raw==="Left"?"Right":"Left");
+}
+
+/* ================= Main loop ================= */
+function loop(){
+  if(!running) return;
+  rafId=requestAnimationFrame(loop);
+  const now=performance.now();
+  if(video.currentTime===lastVideoTime){ return; }
+  lastVideoTime=video.currentTime;
+
+  let res=null;
+  try{ res = landmarker.detectForVideo(video, now); }catch(e){ return; }
+
+  // fps
+  if(lastFrameTs){ const inst=1000/(now-lastFrameTs); fpsEMA=fpsEMA?fpsEMA*0.9+inst*0.1:inst; fpsEl.textContent=fpsEMA.toFixed(0)+" fps"; }
+  lastFrameTs=now;
+
+  // gather metrics per user-facing hand
+  const perHand = {Right:null, Left:null};
+  const draw=[];
+  if(res && res.landmarks){
+    for(let i=0;i<res.landmarks.length;i++){
+      const lm=res.landmarks[i];
+      const cat=(res.handednesses&&res.handednesses[i]&&res.handednesses[i][0])?res.handednesses[i][0].categoryName:"Right";
+      const fh=faceHand(cat);
+      if(!perHand[fh]) perHand[fh]=metricsFor(lm);
+      draw.push({lm,fh});
+    }
+  }
+  const nHands=draw.length;
+  stHands.querySelector("b").textContent=String(nHands);
+  setPill(stHands, nHands>0, String(nHands));
+
+  drawOverlay(draw);
+  applyMappings(perHand, now);
+}
+
+/* ================= Mapping application ================= */
+function valueOf(c, perHand){
+  const src = c.hand==="Any" ? (perHand.Right||perHand.Left) : perHand[c.hand];
+  if(!src) return null;
+  let v = src[c.metric]; if(v==null) return null;
+  if(c.invert) v=1-v;
+  return v; // 0..1
+}
+function applyMappings(perHand, now){
+  const on = outChk.checked && !!midiPort;
+  setPill(stOut, on, on?"ON":"OFF");
+  stOut.querySelector("b").textContent = on?"ON":"OFF";
+  const a=smooth.get();
+  const gate = now-lastSendAt >= sendInterval;
+
+  for(const c of config){
+    const raw = c.on ? valueOf(c, perHand) : null;
+
+    if(c.kind==="cc"){
+      let target = raw==null ? (c._active? c._sm : null) : raw;
+      if(raw!=null){
+        c._sm = (c._sm==null)? raw : c._sm*a + raw*(1-a);
+        c._active=true;
+        const midi = Math.round(clamp01(c._sm)*127);
+        c._meter = midi;
+        if(on && gate && midi!==c._last){ sendCC(c.ch, c.cc, midi); c._last=midi; }
+      } else { c._active=false; c._meter=null; }
+    }
+    else if(c.kind==="note"){
+      if(raw==null){ c._meter=null;
+        if(c._noteState && on){ sendNoteOff(c.ch,c.note); } c._noteState=false; continue; }
+      c._meter=Math.round(raw*127);
+      const closed = raw < c.thresh;               // pinched
+      const open   = raw > c.thresh+0.08;          // hysteresis
+      if(closed && !c._noteState){ c._noteState=true; if(on) sendNoteOn(c.ch,c.note,c.vel||100); }
+      else if(open && c._noteState){ c._noteState=false; if(on) sendNoteOff(c.ch,c.note); }
+    }
+  }
+  if(gate) lastSendAt=now;
+  updateMeters();
+}
+
+/* ================= Overlay drawing ================= */
+const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function drawOverlay(draw){
+  const w=overlay.width,h=overlay.height;
+  octx.clearRect(0,0,w,h);
+  if(!skelChk.checked) return;
+  const mir=MIRROR();
+  // bones + joints in (optionally mirrored) landmark space
+  octx.save();
+  if(mir){ octx.translate(w,0); octx.scale(-1,1); }
+  for(const {lm,fh} of draw){
+    const col = fh==="Right" ? "#5ac8fa" : "#7cf29c";
+    octx.strokeStyle=col; octx.lineWidth=Math.max(2,w/300); octx.globalAlpha=.9;
+    octx.beginPath();
+    for(const [a,b] of CONN){ octx.moveTo(lm[a].x*w,lm[a].y*h); octx.lineTo(lm[b].x*w,lm[b].y*h); }
+    octx.stroke();
+    octx.globalAlpha=1; octx.fillStyle=col;
+    for(const p of lm){ octx.beginPath(); octx.arc(p.x*w,p.y*h,Math.max(2.5,w/220),0,7); octx.fill(); }
+  }
+  octx.restore();
+  // labels drawn in screen space so text is never mirrored
+  octx.font=`600 ${Math.max(12,w/40)}px system-ui`; octx.textBaseline="top";
+  for(const {lm,fh} of draw){
+    const col = fh==="Right" ? "#5ac8fa" : "#7cf29c";
+    const sx = mir ? (w - lm[0].x*w) : lm[0].x*w;
+    const sy = lm[0].y*h + 6;
+    octx.fillStyle=col; octx.fillText(fh, Math.min(sx, w-56), Math.min(sy, h-20));
+  }
+}
+
+/* ================= Meters UI ================= */
+function updateMeters(){
+  for(const c of config){
+    const bar=c._barEl, val=c._valEl, wrap=c._meterEl;
+    if(!bar) continue;
+    const m=c._meter;
+    wrap.classList.toggle("off", !c.on || m==null);
+    if(m==null){ bar.style.width="0%"; val.textContent = c.kind==="note" ? (c._noteState?"ON":"·") : "–"; continue; }
+    bar.style.width=(m/127*100).toFixed(1)+"%";
+    val.textContent = c.kind==="note" ? (c._noteState?"ON":m) : m;
+  }
+}
+function rebuildMeters(){
+  metersEl.innerHTML="";
+  for(const c of config){
+    const row=document.createElement("div");
+    row.className="meter"+(c.kind==="note"?" trig":"");
+    const label = c.kind==="cc"
+      ? `${c.hand} · ${METRICS[c.metric]} <b>→ CC${c.cc}${CC_NAMES[c.cc]?" "+CC_NAMES[c.cc]:""} / Ch${c.ch+1}</b>`
+      : `${c.hand} · ${METRICS[c.metric]} <b>→ Note ${noteName(c.note)} / Ch${c.ch+1}</b>`;
+    row.innerHTML=`<div class="name">${label}</div><div class="bar"><i></i></div><div class="val">–</div>`;
+    metersEl.appendChild(row);
+    c._meterEl=row; c._barEl=row.querySelector("i"); c._valEl=row.querySelector(".val");
+  }
+  updateMeters();
+}
+
+/* ================= Mapping table UI ================= */
+function opt(list, sel){ return list.map(([v,t])=>`<option value="${v}"${v==sel?" selected":""}>${t}</option>`).join(""); }
+function rebuildTable(){
+  mapBody.innerHTML="";
+  config.forEach((c)=>{
+    const tr=document.createElement("tr");
+    const handOpts=opt([["Right","右手 (Right)"],["Left","左手 (Left)"],["Any","どちらか"]], c.hand);
+    const metOpts=opt(Object.entries(METRICS).map(([k,v])=>[k,v]), c.metric);
+    if(c.kind==="cc"){
+      tr.innerHTML=`
+        <td><input class="chk" type="checkbox" ${c.on?"checked":""} data-k="on"></td>
+        <td class="row" style="gap:6px"><select data-k="hand">${handOpts}</select><select data-k="metric">${metOpts}</select></td>
+        <td><span class="tag">CC</span></td>
+        <td><input type="number" min="0" max="127" value="${c.cc}" data-k="cc"></td>
+        <td><input type="number" min="1" max="16" value="${c.ch+1}" data-k="ch"></td>
+        <td style="text-align:center"><input class="chk" type="checkbox" ${c.invert?"checked":""} data-k="invert"></td>
+        <td class="rm"><button data-rm title="削除">✕</button></td>`;
+    } else {
+      tr.innerHTML=`
+        <td><input class="chk" type="checkbox" ${c.on?"checked":""} data-k="on"></td>
+        <td class="row" style="gap:6px"><select data-k="hand">${handOpts}</select>
+            <span class="tag" title="Pinch でトリガー">Pinch↧</span></td>
+        <td><span class="tag" style="color:var(--warn)">NOTE</span></td>
+        <td><input type="number" min="0" max="127" value="${c.note}" data-k="note" title="${noteName(c.note)}"></td>
+        <td><input type="number" min="1" max="16" value="${c.ch+1}" data-k="ch"></td>
+        <td style="text-align:center" title="しきい値(小=浅い)">
+            <input type="number" min="0.05" max="0.9" step="0.01" style="width:52px" value="${c.thresh}" data-k="thresh"></td>
+        <td class="rm"><button data-rm title="削除">✕</button></td>`;
+    }
+    // wire inputs
+    tr.querySelectorAll("[data-k]").forEach(el=>{
+      el.addEventListener("change",()=>{
+        const k=el.dataset.k;
+        if(el.type==="checkbox") c[k]=el.checked;
+        else if(k==="ch") c.ch=Math.min(15,Math.max(0,(parseInt(el.value,10)||1)-1));
+        else if(k==="thresh") c.thresh=parseFloat(el.value)||0.28;
+        else if(["cc","note"].includes(k)) c[k]=Math.min(127,Math.max(0,parseInt(el.value,10)||0));
+        else c[k]=el.value;
+        c._last=null; c._sm=null; save(); rebuildMeters();
+        if(k==="metric"||k==="hand") rebuildMeters();
+        if(k==="note"){ const inp=tr.querySelector('[data-k=note]'); if(inp) inp.title=noteName(c.note); }
+      });
+    });
+    tr.querySelector("[data-rm]").addEventListener("click",()=>{
+      if(c.kind==="note"&&c._noteState) sendNoteOff(c.ch,c.note);
+      config=config.filter(x=>x!==c); save(); rebuildTable(); rebuildMeters();
+    });
+    mapBody.appendChild(tr);
+  });
+}
+
+/* ================= Persistence ================= */
+function save(){
+  const clean=config.map(({_sm,_last,_meter,_active,_noteState,_meterEl,_barEl,_valEl,...rest})=>rest);
+  localStorage.setItem(LS_KEY, JSON.stringify({rows:clean, smooth:smoothRange.value, rate:rateRange.value, chan:midiChan.value}));
+}
+function load(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(!raw){ config=defaultConfig(); return; }
+    const o=JSON.parse(raw);
+    config = (o.rows&&o.rows.length)? o.rows.map(r=>({id:uid(),...r})) : defaultConfig();
+    if(o.smooth){ smoothRange.value=o.smooth; smoothVal.textContent=o.smooth; }
+    if(o.rate){ rateRange.value=o.rate; rateVal.textContent=o.rate; sendInterval=1000/parseInt(o.rate,10); }
+    if(o.chan!=null) midiChan.value=o.chan;
+  }catch(e){ config=defaultConfig(); }
+}
+
+/* ================= Small helpers ================= */
+function setPill(el,ok,txt){ el.classList.toggle("ok",ok); el.classList.toggle("no",!ok);
+  if(txt!=null){ const b=el.querySelector("b"); if(b) b.textContent=txt; } }
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ================= Events ================= */
+startBtn.onclick=startCam;
+stopBtn.onclick=stopCam;
+panicBtn.onclick=panic;
+midiOut.onchange=()=>setPort(midiOut.value);
+outChk.onchange=()=>{ if(!outChk.checked) panic(); };
+smoothRange.oninput=()=>{ smoothVal.textContent=smoothRange.value; save(); };
+rateRange.oninput=()=>{ rateVal.textContent=rateRange.value; sendInterval=1000/parseInt(rateRange.value,10); save(); };
+const defCh=()=>parseInt(midiChan.value,10)||0;
+$("addCtrlBtn").onclick=()=>{ config.push({id:uid(),on:true,kind:"cc",hand:"Right",metric:"y",cc:7,ch:defCh(),invert:false}); save(); rebuildTable(); rebuildMeters(); };
+$("addNoteBtn").onclick=()=>{ config.push({id:uid(),on:true,kind:"note",hand:"Right",metric:"pinch",note:60,ch:defCh(),thresh:0.28,vel:100}); save(); rebuildTable(); rebuildMeters(); };
+$("resetMapBtn").onclick=()=>{ if(confirm("マッピングを既定に戻しますか？")){ panic(); config=defaultConfig(); save(); rebuildTable(); rebuildMeters(); } };
+mirrorChk.onchange=()=>{ video.style.transform = MIRROR()?"scaleX(-1)":"none"; };
+midiChan.onchange=()=>{ // set as default channel: apply to rows that used old default? keep simple — informational
+  save(); };
+window.addEventListener("beforeunload", panic);
+document.addEventListener("keydown",(e)=>{ if(e.code==="Space" && e.target===document.body){ e.preventDefault(); outChk.checked=!outChk.checked; if(!outChk.checked) panic(); } });
+
+// theme toggle
+$("themeBtn").onclick=()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const next = cur==="light"?"dark":cur==="dark"?"":"light";
+  if(next) document.documentElement.setAttribute("data-theme",next); else document.documentElement.removeAttribute("data-theme");
+  localStorage.setItem("vismidi.theme", next||"");
+};
+{ const t=localStorage.getItem("vismidi.theme"); if(t) document.documentElement.setAttribute("data-theme",t); }
+
+/* ================= Init ================= */
+for(let i=1;i<=16;i++){ const o=document.createElement("option"); o.value=i-1; o.textContent="Ch "+i; midiChan.appendChild(o); }
+load();
+video.style.transform = MIRROR()?"scaleX(-1)":"none";
+rebuildTable();
+rebuildMeters();
+initMIDI();
+</script>
+</body>
+</html>
