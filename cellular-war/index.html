@@ -31,6 +31,9 @@
   .bar{height:14px;border-radius:7px;background:#0a0d12;border:1px solid var(--line);overflow:hidden;position:relative}
   .bar > i{display:block;height:100%;transition:width .1s linear}
   .barlabel{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px}
+  .share{display:flex;height:18px;border-radius:9px;overflow:hidden;border:1px solid var(--line);background:#0a0d12}
+  .share > i{display:block;height:100%;transition:width .12s linear}
+  .share > i:first-child{background:var(--red)} .share > i:last-child{background:var(--blue)}
   .palette{display:grid;grid-template-columns:1fr;gap:6px}
   .pbtn{display:flex;align-items:center;gap:8px;text-align:left;justify-content:flex-start}
   .pbtn .k{font-size:10px;color:var(--muted);min-width:14px}
@@ -73,6 +76,13 @@
     </div>
     <aside id="side">
       <div class="grp">
+        <h2>戦況</h2>
+        <div class="barlabel"><span>勢力（セル比）</span><span id="shareTxt">– : –</span></div>
+        <div class="share"><i id="shareR" style="width:50%"></i><i id="shareB" style="width:50%"></i></div>
+        <div class="barlabel" style="margin-top:8px"><span id="domTxt">制圧ゲージ（70%キープで勝利）</span><span id="timeTxt">3:00</span></div>
+        <div class="bar"><i id="domBar" style="background:var(--red);width:0%"></i></div>
+      </div>
+      <div class="grp">
         <h2>あなた（赤）エナジー</h2>
         <div class="barlabel"><span>ENERGY</span><span id="enTxt">0</span></div>
         <div class="bar"><i id="enBar" style="background:var(--red);width:0%"></i></div>
@@ -114,8 +124,12 @@
         <h2>ルール</h2>
         <div class="hint">
           誕生=近傍3・生存=近傍2/3（標準ライフ）。<br>
-          <b>誕生セルの色は親3個の多数決</b>。境界を押せば敵構造を自色に塗り替える。<br>
-          <b>接触戦闘ON</b>: 敵近傍が味方近傍より多いセルは死亡（接触で削り合い）。
+          <b>誕生セルの色は親3個の多数決</b>。境界を押せば敵構造を自色に塗り替える。<br><br>
+          <b>勝利条件</b><br>
+          ・<b>制圧</b>：生存セルの70%以上を6秒キープ（本命）<br>
+          ・<b>全滅</b>：相手を盤上から一掃<br>
+          ・<b>時間切れ</b>：3分で決着せねばセルの多い方が勝ち<br><br>
+          <b>接触戦闘ON</b>: 敵近傍が味方近傍より多いセルは死亡（接触で削り合い。挙動の味付け用トグル）。
         </div>
       </div>
     </aside>
@@ -371,16 +385,70 @@ function updateHUD(){
   const cdPct = Math.max(0,Math.min(100, pr.cd/ (cdMax||1) *100));
   document.getElementById('cdBar').style.width=cdPct+'%';
   document.getElementById('cdTxt').textContent=pr.cd.toFixed(1)+'s';
+
+  // 戦況パネル
+  const tot=cntR+cntB;
+  const rp = tot ? cntR/tot*100 : 50;
+  document.getElementById('shareR').style.width=rp+'%';
+  document.getElementById('shareB').style.width=(100-rp)+'%';
+  document.getElementById('shareTxt').textContent = tot ? (Math.round(rp)+' : '+Math.round(100-rp)) : '– : –';
+  const lead = (domTimer[RED]>=domTimer[BLUE]) ? RED : BLUE;
+  const dv   = Math.max(domTimer[RED], domTimer[BLUE]);
+  const dpct = Math.min(100, dv/DOM_HOLD*100);
+  const domBar=document.getElementById('domBar');
+  domBar.style.width=dpct+'%';
+  domBar.style.background = lead===RED ? 'var(--red)' : 'var(--blue)';
+  document.getElementById('domTxt').textContent = dpct>0
+    ? (lead===RED?'⚠ 赤 制圧中':'⚠ 青 制圧中')
+    : '制圧ゲージ（70%キープで勝利）';
+  const rem=Math.max(0, MATCH_LIM - matchClock);
+  document.getElementById('timeTxt').textContent = Math.floor(rem/60)+':'+String(Math.floor(rem%60)).padStart(2,'0');
 }
 
 // ================= win check =================
-function checkWin(){
+// 実験（AI対AIを多数回）の結果、「全滅（annihilation）」はライフゲームの性質上
+// ほぼ起きず、放置すると永久に膠着することが判明した。そこで勝敗は3段構えにする:
+//   1) 制圧(domination): 盤上の生存セルの一定割合以上を一定時間キープ → 勝ち（本命）
+//   2) 全滅(annihilation): 相手のセルが0のまま猶予時間経過 → 勝ち（稀だが決定打）
+//   3) 時間切れ(time): 制限時間で決着せねば、多い方が勝ち（引き分けは僅差のみ）
+// これにより「必ず決着し、多くは制圧で決まる」ゲームになる。
+const GRACE     = 2.6;   // 全滅確定までの猶予（秒）
+const DOM_FRAC  = 0.70;  // 制圧とみなす生存セル比率
+const DOM_HOLD  = 6.0;   // 制圧を維持すべき時間（秒）
+const DOM_MIN   = 60;    // 制圧判定を始める最低総セル数（序盤の誤判定防止）
+const MATCH_LIM = 180;   // 制限時間（秒）
+let deadTimer = {[RED]:0, [BLUE]:0};
+let domTimer  = {[RED]:0, [BLUE]:0};
+let matchClock = 0;
+
+function checkWin(dt){
   if(gameOver) return;
-  const rP=player[RED].placed, bP=player[BLUE].placed;
-  if(!(rP&&bP)) return;
-  if(cntR===0 && cntB===0){ endGame('引き分け（相打ち）','#e6edf3'); }
-  else if(cntR===0){ endGame('青の勝利！','#4d9fff'); }
-  else if(cntB===0){ endGame('赤の勝利！','#ff5252'); }
+  if(!(player[RED].placed && player[BLUE].placed)) return;
+  matchClock += dt;
+
+  // 1) 全滅
+  deadTimer[RED]  = (cntR===0) ? deadTimer[RED]+dt  : 0;
+  deadTimer[BLUE] = (cntB===0) ? deadTimer[BLUE]+dt : 0;
+  if(deadTimer[RED]>=GRACE && deadTimer[BLUE]>=GRACE) return endGame('引き分け（相打ち）','#e6edf3');
+  if(deadTimer[RED] >=GRACE) return endGame('青の勝利！（全滅）','#4d9fff');
+  if(deadTimer[BLUE]>=GRACE) return endGame('赤の勝利！（全滅）','#ff5252');
+
+  // 2) 制圧
+  const tot = cntR + cntB;
+  if(tot >= DOM_MIN){
+    domTimer[RED]  = (cntR/tot >= DOM_FRAC) ? domTimer[RED]+dt  : 0;
+    domTimer[BLUE] = (cntB/tot >= DOM_FRAC) ? domTimer[BLUE]+dt : 0;
+    if(domTimer[RED] >=DOM_HOLD) return endGame('赤の勝利！（制圧）','#ff5252');
+    if(domTimer[BLUE]>=DOM_HOLD) return endGame('青の勝利！（制圧）','#4d9fff');
+  } else { domTimer[RED]=0; domTimer[BLUE]=0; }
+
+  // 3) 時間切れ
+  if(matchClock >= MATCH_LIM){
+    const t = tot||1, diff=(cntR-cntB)/t;
+    if(Math.abs(diff)<0.05) endGame('引き分け（時間切れ）','#e6edf3');
+    else if(diff>0)         endGame('赤の勝利！（時間切れ）','#ff5252');
+    else                    endGame('青の勝利！（時間切れ）','#4d9fff');
+  }
 }
 function endGame(txt,color){
   gameOver=true; running=false;
@@ -411,7 +479,7 @@ function loop(now){
     while(acc>=stepT && iter<4){ stepSim(); acc-=stepT; iter++; }
   }
   countCells();
-  checkWin();
+  checkWin(running ? dt : 0);
   draw();
   updateHUD();
   requestAnimationFrame(loop);
@@ -468,7 +536,12 @@ function togglePlay(){
 }
 document.getElementById('btnPlay').onclick=togglePlay;
 document.getElementById('btnStep').onclick=()=>{ if(!gameOver){ stepSim(); } };
-document.getElementById('btnClear').onclick=()=>{ grid.fill(0); generation=0; };
+document.getElementById('btnClear').onclick=()=>{
+  grid.fill(0); generation=0;
+  player[RED].placed=false; player[BLUE].placed=false;
+  deadTimer[RED]=0; deadTimer[BLUE]=0;
+  domTimer[RED]=0; domTimer[BLUE]=0; matchClock=0;
+};
 document.getElementById('btnCombat').onclick=e=>{
   combat=!combat;
   e.target.textContent='接触戦闘: '+(combat?'ON':'OFF');
@@ -486,6 +559,8 @@ function resetGame(){
   grid.fill(0); next.fill(0); generation=0; gameOver=false; running=true;
   player[RED].energy=60; player[RED].cd=0; player[RED].placed=false;
   player[BLUE].energy=60; player[BLUE].cd=0; player[BLUE].placed=false;
+  deadTimer[RED]=0; deadTimer[BLUE]=0;
+  domTimer[RED]=0; domTimer[BLUE]=0; matchClock=0;
   aiTimer=0;
   document.getElementById('banner').style.display='none';
   document.getElementById('btnPlay').textContent='⏸ 一時停止';
