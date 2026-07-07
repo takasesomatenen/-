@@ -156,6 +156,11 @@
             <option value="star">スターツイスト</option>
             <option value="uwiggle">U字ウィグル（教材）</option>
           </optgroup>
+          <optgroup label="Zホップ系（移動を見せる）">
+            <option value="hoptower">Zホップ・マルチタワー</option>
+            <option value="hopstitch">Zホップ・ステッチ</option>
+            <option value="hopspiral">Zホップ・らせん点描</option>
+          </optgroup>
         </select>
       </div>
       <div class="field"><label>直径 / 辺 (mm)</label><input id="pDia" type="number" value="30"></div>
@@ -264,6 +269,10 @@
     左上「プリセット/パターン」で種類を選び、<b>直径・高さ・波の数・波の高さ</b>を変えて「✦生成」。
     「波打つ壁」は半径を <code>R + A·sin(Nθ)</code> で揺らして、写真のような凹凸の壁をノズルが描きます。
     まずは<b>波の数</b>や<b>波の高さ</b>を変えて生成し、3Dの変化を見るのがおすすめ。</p>
+    <p><b>トリッキー系・Zホップ系</b><br>
+    「トリッキー」はノズルの動きで遊ぶ系（Zジグザグ＝縦波、ねじれ角柱、傾き積層＝はみ出し、スターツイスト）。
+    「Zホップ系」は<b>ノズルがZ方向に持ち上がって移動</b>する様子を見せます：マルチタワー（複数の小塔を1層ずつ巡回し塔間をホップ）、ステッチ（破線の隙間をホップで飛び越す）、らせん点描。
+    これらは自動で<b>移動(travel)表示ON</b>になり、縦のホップ移動が明るく描かれます。<b>波の高さ</b>＝ホップの高さ(mm)、<b>波の数</b>＝塔/行/巻き数です。</p>
     <p><b>G-codeの読み方（どういじるか）</b><br>
     ・<code>G1 X.. Y.. E.. F..</code> = 「そこまで<b>直線移動しながらEだけ押し出す</b>、速度F(mm/min)」<br>
     ・<code>G1 Z.. </code> = 高さ（層）を上げる<br>
@@ -307,7 +316,8 @@ function parseGcode(text){
     if(!zMap.has(curZ)){const o={segs:[],travels:[],z:curZ};zMap.set(curZ,o);zList.push(curZ);} return zMap.get(curZ);
   };
   for(const raw of lines){
-    if(raw.indexOf('PART START')>=0){mn.x=mn.y=mn.z=1e9;mx.x=mx.y=mx.z=-1e9;} // プライム/スカートを寸法から除外
+    if(raw.indexOf('PART START')>=0){mn.x=mn.y=mn.z=1e9;mx.x=mx.y=mx.z=-1e9; // プライム/スカートを寸法から除外
+      mkLayers.length=0; curMk=null;} // マーカー層モード: プライム分の余分な層を捨てる
     if(useMarkers && markerRe.test(raw.trim())){curMk={segs:[],travels:[]};mkLayers.push(curMk);}
     const line=raw.replace(/;.*$/,'').trim(); if(!line)continue;
     const parts=line.split(/\s+/), cmd=parts[0].toUpperCase();
@@ -376,10 +386,14 @@ function speedColor(f){
 function draw(){
   const {w,h}=sizeCanvas(); ctx.clearRect(0,0,w,h);
   const bx=num('bedX'), by=num('bedY');
-  const cx=bx/2, cy=by/2, cz=(model.layers.length?(model.min.z+model.max.z)/2:0);
+  const has=model.layers.length>0;
+  // 投影中心＝造形物の中心（無ければベッド中心）。フィットも造形物基準で寄せる。
+  const cx=has?(model.min.x+model.max.x)/2:bx/2,
+        cy=has?(model.min.y+model.max.y)/2:by/2,
+        cz=has?(model.min.z+model.max.z)/2:0;
   if(view.auto){
-    const span=Math.max(bx,by,(model.max.z-model.min.z)||1);
-    view.scale=Math.min(w,h)/(span*1.7); view.panX=0; view.panY=(view.el>1.4?0:-h*0.06);
+    const span=has?Math.max(model.max.x-model.min.x, model.max.y-model.min.y, model.max.z-model.min.z, 8):Math.max(bx,by);
+    view.scale=Math.min(w,h)/(span*1.9); view.panX=0; view.panY=(view.el>1.4?0:-h*0.04);
   }
   const ox=w/2+view.panX, oy=h/2+view.panY, s=view.scale;
   const pj=(x,y,z)=>project(x,y,z,cx,cy,cz,ox,oy,s);
@@ -399,9 +413,17 @@ function draw(){
   const single=$('singleLayer').checked, showT=$('showTravel').checked, bySpeed=$('colorSpeed').checked;
   const lo=single?top:0;
   if(showT){
-    ctx.strokeStyle=cTravel; ctx.globalAlpha=.6; ctx.lineWidth=0.6;
-    for(let li=lo;li<=top&&li<model.layers.length;li++){const T=model.layers[li].travels;ctx.beginPath();
-      for(let i=0;i<T.length;i+=6){const a=pj(T[i],T[i+1],T[i+2]),b=pj(T[i+3],T[i+4],T[i+5]);ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}
+    const cHop=css('--ink-soft');
+    const zLimit=(has?model.max.z:0)+3; // 造形物より十分高い移動(エンドのZ10リフト等)は描かない
+    // flat travel（faint）と Zホップ（縦移動 dz≠0 を明るく）を描き分ける
+    for(let pass=0;pass<2;pass++){
+      ctx.strokeStyle = pass?cHop:cTravel; ctx.globalAlpha = pass?0.95:0.5; ctx.lineWidth = pass?1.0:0.7;
+      for(let li=lo;li<=top&&li<model.layers.length;li++){const T=model.layers[li].travels;ctx.beginPath();
+        for(let i=0;i<T.length;i+=6){
+          if(T[i+2]>zLimit||T[i+5]>zLimit)continue;
+          const isHop=Math.abs(T[i+5]-T[i+2])>0.02; if(isHop!==!!pass)continue;
+          const a=pj(T[i],T[i+1],T[i+2]),b=pj(T[i+3],T[i+4],T[i+5]);ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();}
+    }
     ctx.globalAlpha=1;
   }
   ctx.lineWidth=1.1; ctx.lineCap='round';
@@ -648,17 +670,95 @@ function genStarTwist(){
     g+=emitLoop(pts,l);}
   return g+endGcode();
 }
+// --- Zホップ系（ノズルが持ち上がって移動＝travelの山型が見える）---
+// マルチタワー: 複数の小塔を1層ずつ巡回。塔間はZを持ち上げて移動（Zホップの代表例）。
+function genHopTowers(){
+  const cx=CX(),cy=CY(),lh=num('layerH'),lh1=num('layerH1');
+  const n=Math.max(2,Math.round(num('pWaves'))), hop=Math.max(0.4,num('pAmp'));
+  const R=Math.max(6,num('pDia')/2), seg=48;
+  let N=Math.max(1,Math.round(num('pH')/lh)); if(N*n*seg>13000)N=Math.max(1,Math.floor(13000/(n*seg)));
+  const tr=Math.max(2,Math.min(R*0.5, 2*R*Math.sin(Math.PI/n)*0.42));
+  const towers=[]; for(let i=0;i<n;i++){const a=i/n*Math.PI*2; towers.push([cx+R*Math.cos(a),cy+R*Math.sin(a)]);}
+  let g=startGcode()+'; PART START\n';
+  g+=`; ==== HOP: Zホップ・マルチタワー（${n}塔を1層ずつ巡回、塔間は Z+${hop}mm 持ち上げて移動）====\n`;
+  g+=`; travel表示ONで、塔から塔へ飛び移るホップ（山型の移動線）が見えます。\n`;
+  let px=null;
+  for(let l=0;l<N;l++){
+    const z=lh1+l*lh; g+=`; LAYER ${l}\n`;
+    for(let t=0;t<n;t++){
+      const tx=towers[t][0],ty=towers[t][1], sx=tx+tr, sy=ty;
+      if(px!==null)g+=`G1 Z${(z+hop).toFixed(3)} F3000 ; ホップ上昇\n`;
+      g+=`G1 X${sx.toFixed(3)} Y${sy.toFixed(3)} F${num('tspeed')*60} ; 移動\n`;
+      g+=`G1 Z${z.toFixed(3)} F3000 ; 下降\n`;
+      let ax=sx,ay=sy;
+      for(let i=1;i<=seg;i++){const a=i/seg*Math.PI*2, x=tx+tr*Math.cos(a), y=ty+tr*Math.sin(a);
+        const e=extE(Math.hypot(x-ax,y-ay));
+        g+=`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${(l===0?num('pspeed1'):num('pspeed'))*60}\n`; ax=x;ay=y;}
+      px=ax;
+    }
+  }
+  return g+endGcode();
+}
+// ステッチ: 破線を並べ、隙間ごとにZホップで飛び越す（刺繍のような模様）。
+function genHopStitch(){
+  const cx=CX(),cy=CY(),lh=num('layerH'),lh1=num('layerH1');
+  const hop=Math.max(0.4,num('pAmp')), rows=Math.max(2,Math.round(num('pWaves')));
+  const W=Math.max(12,num('pDia')), dash=3, gap=3, rowGap=3;
+  const cols=Math.max(2,Math.floor(W/(dash+gap)));
+  const layers=Math.max(1,Math.min(6,Math.round(num('pH')/lh)));
+  const x0=cx-(cols*(dash+gap)-gap)/2, y0=cy-(rows-1)*rowGap/2;
+  let g=startGcode()+'; PART START\n';
+  g+=`; ==== HOP: Zホップ・ステッチ（破線＋ホップ / 隙間を Z+${hop}mm で飛び越す）====\n`;
+  let px=null;
+  for(let l=0;l<layers;l++){
+    const z=lh1+l*lh; g+=`; LAYER ${l}\n`;
+    for(let r=0;r<rows;r++){
+      const y=y0+r*rowGap, dir=(r%2===0)?1:-1;
+      for(let c=0;c<cols;c++){
+        const idx=dir>0?c:(cols-1-c), base=x0+idx*(dash+gap);
+        const a=dir>0?base:base+dash, b=dir>0?base+dash:base;
+        if(px!==null)g+=`G1 Z${(z+hop).toFixed(3)} F3000\n`;
+        g+=`G1 X${a.toFixed(3)} Y${y.toFixed(3)} F${num('tspeed')*60}\n`;
+        if(px!==null)g+=`G1 Z${z.toFixed(3)} F3000\n`;
+        const e=extE(Math.abs(b-a));
+        g+=`G1 X${b.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${(l===0?num('pspeed1'):num('pspeed'))*60}\n`;
+        px=b;
+      }
+    }
+  }
+  return g+endGcode();
+}
+// らせん点描: らせん上に破線を打ち、間をZホップでつなぐ。
+function genHopSpiral(){
+  const cx=CX(),cy=CY(),lh1=num('layerH1');
+  const hop=Math.max(0.4,num('pAmp')), turns=Math.max(2,Math.round(num('pWaves')));
+  const maxR=Math.max(6,num('pDia')/2), per=24, steps=turns*per, z=lh1;
+  let g=startGcode()+'; PART START\n; LAYER 0\n';
+  g+=`; ==== HOP: Zホップ・らせん点描（らせん上に破線、間を Z+${hop}mm ホップ）====\n`;
+  let px=cx,py=cy;
+  g+=`G1 X${cx.toFixed(3)} Y${cy.toFixed(3)} F${num('tspeed')*60}\nG1 Z${z.toFixed(3)} F3000\n`;
+  for(let i=1;i<=steps;i++){
+    const th=i/per*Math.PI*2, r=maxR*i/steps, x=cx+r*Math.cos(th), y=cy+r*Math.sin(th);
+    if(i%2===1){const e=extE(Math.hypot(x-px,y-py)); g+=`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${num('pspeed')*60}\n`;}
+    else{g+=`G1 Z${(z+hop).toFixed(3)} F3000\nG1 X${x.toFixed(3)} Y${y.toFixed(3)} F${num('tspeed')*60}\nG1 Z${z.toFixed(3)} F3000\n`;}
+    px=x;py=y;
+  }
+  return g+endGcode();
+}
 function genPreset(){
   switch($('preset').value){
-    case 'wavy':   return genVase(num('pAmp'));
-    case 'spiral': return genVase(0);
-    case 'square': return genStack('square');
-    case 'uwiggle':return genU();
-    case 'zzz':    return genZWobble();
-    case 'twist':  return genTwist();
-    case 'lean':   return genLean();
-    case 'star':   return genStarTwist();
-    default:       return genStack('circle');
+    case 'wavy':    return genVase(num('pAmp'));
+    case 'spiral':  return genVase(0);
+    case 'square':  return genStack('square');
+    case 'uwiggle': return genU();
+    case 'zzz':     return genZWobble();
+    case 'twist':   return genTwist();
+    case 'lean':    return genLean();
+    case 'star':    return genStarTwist();
+    case 'hoptower':return genHopTowers();
+    case 'hopstitch':return genHopStitch();
+    case 'hopspiral':return genHopSpiral();
+    default:        return genStack('circle');
   }
 }
 
@@ -673,7 +773,12 @@ $('btnTop').onclick=()=>{view.auto=true;view.az=-Math.PI/2;view.el=1.55;draw();}
 $('btnStart').onclick=()=>{ if(editor.value.trim()===''||editor.value.trim().startsWith(';'))editor.value=startGcode();else insertAtCursor(startGcode()); onEdit();};
 $('btnEnd').onclick=()=>{editor.value+=(editor.value.endsWith('\n')?'':'\n')+endGcode();onEdit();};
 $('btnFormat').onclick=()=>parseGcode(editor.value);
-function loadPreset(){editor.value=genPreset();view.auto=true;onEdit();}
+function loadPreset(){
+  const k=$('preset').value;
+  editor.value=genPreset();
+  if(k.startsWith('hop')){ $('showTravel').checked=true; view.el=0.7; view.az=-0.9; } // ホップは移動線ON＋やや横視点
+  view.auto=true; onEdit();
+}
 $('btnSample').onclick=loadPreset;
 $('btnGen').onclick=loadPreset;
 $('preset').addEventListener('change',loadPreset);
