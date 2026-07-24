@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DNB Generator — ブラウザで動くドラムンベース・ジェネレーター</title>
+<title>GROOVE Generator — DNB / ACID / HOUSE ジェネレーター</title>
 <style>
   :root {
     --bg: #08090b;
@@ -53,9 +53,12 @@
     color: var(--fg-dim); margin: 0 0 10px;
   }
 
+  .genre-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
   .transport { display: flex; flex-wrap: wrap; gap: 8px; }
   .expr { display: flex; flex-wrap: wrap; gap: 8px; }
-  .mutes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .voices { display: flex; flex-direction: column; gap: 8px; }
+  .voice-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .voice-row .voice-name { width: 72px; flex: 0 0 72px; font-size: 12.5px; color: var(--fg-dim); }
 
   button.btn {
     appearance: none; border: 1px solid var(--line); background: var(--panel-2);
@@ -65,6 +68,7 @@
   }
   button.btn:hover { border-color: #3a4048; }
   button.btn:active { transform: translateY(1px); }
+  button.btn.btn-sm { padding: 7px 10px; font-size: 11.5px; }
 
   button.play { border-color: var(--green); color: var(--green); min-width: 108px; font-weight: 600; }
   button.play.on { background: var(--green); color: #04150b; box-shadow: 0 0 18px rgba(57,255,136,.35); }
@@ -72,7 +76,11 @@
   button.accent-magenta.on { background: var(--magenta); color: #240018; border-color: var(--magenta); box-shadow: 0 0 18px rgba(255,61,240,.35); }
   button.accent-amber.on { background: var(--amber); color: #241800; border-color: var(--amber); box-shadow: 0 0 14px rgba(255,176,61,.3); }
 
-  button.mute-btn { min-width: 76px; text-align: center; }
+  button.genre-btn { min-width: 88px; font-weight: 600; text-align: center; }
+  button.genre-btn.active { border-color: var(--green); color: var(--green); background: rgba(57,255,136,.08); }
+  button.genre-btn.pending { box-shadow: 0 0 0 2px rgba(255,176,61,.6) inset; }
+
+  button.mute-btn { min-width: 68px; text-align: center; }
   button.mute-btn.muted { border-color: var(--red); color: var(--red); background: rgba(255,77,94,.08); }
 
   .sliders {
@@ -119,12 +127,22 @@
 <body>
 <div class="app">
   <header>
-    <h1>DNB <span>GENERATOR</span></h1>
+    <h1>GROOVE <span>GENERATOR</span></h1>
     <p>単一HTML・外部通信ゼロ・Web Audio APIで即興生成</p>
   </header>
 
   <div class="stage">
     <canvas id="viz"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>ジャンル</h2>
+    <div class="genre-tabs">
+      <button class="btn genre-btn active" data-genre="dnb">DNB</button>
+      <button class="btn genre-btn" data-genre="acid">ACID</button>
+      <button class="btn genre-btn" data-genre="house">HOUSE</button>
+    </div>
+    <div class="hint">切り替えは次の小節頭で反映されます（停止中は即時）。テンポ/スウィング/複雑さ/Hi-Hat密度はジャンルごとの初期値に自動セットされます。</div>
   </div>
 
   <div class="panel">
@@ -141,21 +159,45 @@
     <div class="expr">
       <button class="btn accent-magenta" id="breakdownBtn">🌊 ブレイクダウン</button>
       <button class="btn accent-amber" id="halftimeBtn">⏱ ハーフタイム</button>
-      <button class="btn mute-btn" data-mute="kick">Kick</button>
-      <button class="btn mute-btn" data-mute="snare">Snare</button>
-      <button class="btn mute-btn" data-mute="hats">Hats</button>
-      <button class="btn mute-btn" data-mute="bass">Bass</button>
     </div>
   </div>
 
   <div class="panel">
+    <h2>音色 &amp; ミュート<span class="badge">再生中OK</span></h2>
+    <div class="voices">
+      <div class="voice-row">
+        <span class="voice-name">Kick</span>
+        <button class="btn btn-sm" data-dice="kick">🎲 音色</button>
+        <button class="btn btn-sm mute-btn" data-mute="kick">Mute</button>
+      </div>
+      <div class="voice-row">
+        <span class="voice-name" id="secondaryName">Snare</span>
+        <button class="btn btn-sm" data-dice="secondary">🎲 音色</button>
+        <button class="btn btn-sm mute-btn" data-mute="snare">Mute</button>
+      </div>
+      <div class="voice-row">
+        <span class="voice-name">Hats</span>
+        <button class="btn btn-sm" data-dice="hats">🎲 音色</button>
+        <button class="btn btn-sm mute-btn" data-mute="hats">Mute</button>
+      </div>
+      <div class="voice-row">
+        <span class="voice-name">Bass</span>
+        <button class="btn btn-sm" data-dice="bass">🎲 音色</button>
+        <button class="btn btn-sm mute-btn" data-mute="bass">Mute</button>
+      </div>
+    </div>
+    <div class="hint">音色ダイスは楽器ごとに音の質感（ピッチ・減衰・波形など）をランダムに変えます。パターン変更/ベース変更（上のTransport）はリズム・音程を変えます。</div>
+  </div>
+
+  <div class="panel">
     <h2>パラメーター</h2>
+    <div class="hint" id="bassHint"></div>
     <div class="sliders" id="sliders"></div>
   </div>
 
   <footer>
     ブラウザ内蔵の Web Audio API のみで音を生成しています（音源ファイル・外部通信なし）。<br>
-    Reese風ベース + ブレイクビート + リアルタイム・フィルター/リバーブでリズムとテクスチャを操作できます。
+    DNB（Reeseベース + ブレイクビート）・ACID（303風モノシンセ + スライド/アクセント）・HOUSE（プラックベース + 四つ打ち）の3ジャンルを切り替え、リアルタイム・フィルター/リバーブでリズムとテクスチャを操作できます。
   </footer>
 </div>
 
@@ -178,9 +220,9 @@
   };
 
   const SLIDER_DEFS = [
-    { key: "bpm", label: "Tempo", min: 140, max: 190, step: 1, unit: " BPM" },
+    { key: "bpm", label: "Tempo", min: 90, max: 190, step: 1, unit: " BPM" },
     { key: "swing", label: "Swing", min: 0, max: 100, step: 1, unit: "%" },
-    { key: "complexity", label: "Break複雑さ (ゴースト音)", min: 0, max: 100, step: 1, unit: "%" },
+    { key: "complexity", label: "グルーヴ複雑さ (ゴースト音)", min: 0, max: 100, step: 1, unit: "%" },
     { key: "hatsDensity", label: "Hi-Hat密度", min: 0, max: 100, step: 1, unit: "%" },
     { key: "cutoff", label: "Bassフィルターcutoff", min: 0, max: 100, step: 1, unit: "%" },
     { key: "resonance", label: "Bassレゾナンス", min: 0, max: 100, step: 1, unit: "%" },
@@ -194,31 +236,53 @@
   let breakdownActive = false;
   let halfTime = false;
 
+  function rand(min, max) { return min + Math.random() * (max - min); }
+  function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
+
+  // ---------- Genres ----------
+  const GENRES = ["dnb", "acid", "house"];
+  const GENRE_DEFAULTS = {
+    dnb: { bpm: 172, swing: 15, complexity: 30, hatsDensity: 55 },
+    acid: { bpm: 130, swing: 4, complexity: 12, hatsDensity: 40 },
+    house: { bpm: 124, swing: 8, complexity: 18, hatsDensity: 58 },
+  };
+  let genre = "dnb";
+  let pendingGenre = null;
+
   // ---------- Pattern data ----------
   const STEPS = 16;
-  const PATTERN_BANK = [
-    { kick: [1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0], snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0] },
-    { kick: [1,0,0,0, 0,0,1,0, 0,0,1,0, 0,0,0,0], snare: [0,0,0,0, 1,0,0,0, 0,0,0,1, 1,0,0,0] },
-    { kick: [1,0,0,1, 0,0,0,0, 0,0,1,0, 0,0,1,0], snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1] },
-    { kick: [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,1,0], snare: [0,0,0,0, 1,0,0,1, 0,0,0,0, 1,0,0,0] },
-    { kick: [1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,1,0], snare: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,1,0] },
+
+  const DNB_BANK = [
+    { kick: [1,0,0,0, 0,0,0,0, 0,0,1,0, 0,0,0,0], secondary: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0] },
+    { kick: [1,0,0,0, 0,0,1,0, 0,0,1,0, 0,0,0,0], secondary: [0,0,0,0, 1,0,0,0, 0,0,0,1, 1,0,0,0] },
+    { kick: [1,0,0,1, 0,0,0,0, 0,0,1,0, 0,0,1,0], secondary: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1] },
+    { kick: [1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,1,0], secondary: [0,0,0,0, 1,0,0,1, 0,0,0,0, 1,0,0,0] },
+    { kick: [1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,1,0], secondary: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,1,0] },
   ];
-  let currentPatternIndex = 0;
-  let currentPattern = PATTERN_BANK[0];
-  let pendingPattern = null;
+  const ACID_BANK = [
+    { kick: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], secondary: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0] },
+    { kick: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,1], secondary: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0] },
+    { kick: [1,0,0,0, 1,0,1,0, 1,0,0,0, 1,0,0,0], secondary: [0,0,0,0, 1,0,0,0, 0,0,0,1, 1,0,0,0] },
+  ];
+  const HOUSE_BANK = [
+    { kick: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], secondary: [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0] },
+    { kick: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], secondary: [0,0,0,0, 1,0,0,0, 0,0,1,0, 1,0,0,0] },
+    { kick: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], secondary: [0,0,1,0, 1,0,0,0, 0,0,0,0, 1,0,0,0] },
+  ];
 
   const BASS_ROOT = 41.20; // E1
   const BASS_DEGREES = [0, 3, 5, 7, 10];
-  let bassPattern = [];
-  let pendingBassline = null;
+  const ACID_ROOT = 55.00; // A1, classic 303 register
+  const ACID_DEGREES = [0, 3, 5, 6, 7, 10];
+  const HOUSE_ROOT = 55.00; // A1
+  const HOUSE_DEGREES = [0, 3, 5, 7, 10, 12];
 
-  function generateBassline() {
+  function generateNotePattern(degrees, lenOptions, density) {
     const pat = new Array(STEPS).fill(null);
     let step = 0;
     while (step < STEPS) {
-      if (Math.random() < 0.55) {
-        const degree = BASS_DEGREES[(Math.random() * BASS_DEGREES.length) | 0];
-        const lenOptions = [1, 2, 2, 4];
+      if (Math.random() < density) {
+        const degree = degrees[(Math.random() * degrees.length) | 0];
         const len = Math.min(lenOptions[(Math.random() * lenOptions.length) | 0], STEPS - step);
         pat[step] = { degree, len };
         step += len;
@@ -229,6 +293,85 @@
     return pat;
   }
 
+  function generateAcidPattern() {
+    const pat = new Array(STEPS).fill(null);
+    for (let step = 0; step < STEPS; step++) {
+      if (Math.random() < 0.75) {
+        pat[step] = {
+          degree: ACID_DEGREES[(Math.random() * ACID_DEGREES.length) | 0],
+          accent: Math.random() < 0.25,
+          slide: Math.random() < 0.2,
+        };
+      }
+    }
+    return pat;
+  }
+
+  function regenerateNotesForGenre(g) {
+    if (g === "dnb") return generateNotePattern(BASS_DEGREES, [1, 2, 2, 4], 0.55);
+    if (g === "house") return generateNotePattern(HOUSE_DEGREES, [1, 1, 2], 0.5);
+    return generateAcidPattern();
+  }
+
+  const genreState = {
+    dnb: { bank: DNB_BANK, bankIndex: 0, drum: DNB_BANK[0], pendingDrum: null, notes: generateNotePattern(BASS_DEGREES, [1, 2, 2, 4], 0.55), pendingNotes: null },
+    acid: { bank: ACID_BANK, bankIndex: 0, drum: ACID_BANK[0], pendingDrum: null, notes: generateAcidPattern(), pendingNotes: null },
+    house: { bank: HOUSE_BANK, bankIndex: 0, drum: HOUSE_BANK[0], pendingDrum: null, notes: generateNotePattern(HOUSE_DEGREES, [1, 1, 2], 0.5), pendingNotes: null },
+  };
+
+  // ---------- Timbre parameters (randomizable per instrument) ----------
+  const kickTimbre = { startFreq: 140, endFreq: 45, pitchDecay: 0.09, ampDecay: 0.32, clickAmount: 0.5, clickHp: 2000 };
+  const snareTimbre = { noiseFreq: 1600, noiseQ: 0.7, noiseDecay: 0.16, toneFreq: 190, toneDecay: 0.09, toneMix: 0.45 };
+  const hatsTimbre = { closedHp: 8000, openHp: 6000, closedDecay: 0.045, openDecay: 0.22 };
+  const dnbBassTimbre = { waveform: "sawtooth", detune1: -8, detune2: 9, subMix: 0.9 };
+  const acidTimbre = { waveform: "sawtooth", envModAmount: 2600, decayTime: 0.18, accentBoost: 1.4, slideTime: 0.055, distortionExtra: 4 };
+  const houseTimbre = { waveform: "sine", pluckDecay: 0.22, envAmount: 900, subMix: 0.4 };
+
+  function randomizeKickTimbre() {
+    kickTimbre.startFreq = rand(120, 170);
+    kickTimbre.endFreq = rand(35, 55);
+    kickTimbre.pitchDecay = rand(0.06, 0.14);
+    kickTimbre.ampDecay = rand(0.22, 0.4);
+    kickTimbre.clickAmount = rand(0.2, 0.7);
+    kickTimbre.clickHp = rand(1500, 3200);
+  }
+  function randomizeSnareTimbre() {
+    snareTimbre.noiseFreq = rand(1000, 2600);
+    snareTimbre.noiseQ = rand(0.3, 1.4);
+    snareTimbre.noiseDecay = rand(0.1, 0.22);
+    snareTimbre.toneFreq = rand(140, 280);
+    snareTimbre.toneDecay = rand(0.06, 0.13);
+    snareTimbre.toneMix = rand(0.25, 0.6);
+  }
+  function randomizeHatsTimbre() {
+    hatsTimbre.closedHp = rand(6500, 11000);
+    hatsTimbre.openHp = rand(4500, 7000);
+    hatsTimbre.closedDecay = rand(0.03, 0.08);
+    hatsTimbre.openDecay = rand(0.15, 0.32);
+  }
+  function randomizeDnbBassTimbre() {
+    dnbBassTimbre.waveform = pick(["sawtooth", "square"]);
+    dnbBassTimbre.detune1 = rand(-20, -4);
+    dnbBassTimbre.detune2 = rand(4, 20);
+    dnbBassTimbre.subMix = rand(0.5, 1.0);
+  }
+  function randomizeAcidTimbre() {
+    acidTimbre.waveform = pick(["sawtooth", "square"]);
+    acidTimbre.envModAmount = rand(1200, 5000);
+    acidTimbre.decayTime = rand(0.08, 0.35);
+    acidTimbre.accentBoost = rand(1.2, 1.9);
+    acidTimbre.slideTime = rand(0.02, 0.09);
+    acidTimbre.distortionExtra = rand(0, 14);
+    if (acidVoice) acidVoice.osc.type = acidTimbre.waveform;
+    if (genre === "acid") shaperDirty = true;
+  }
+  function randomizeHouseTimbre() {
+    houseTimbre.waveform = pick(["sine", "triangle", "sawtooth"]);
+    houseTimbre.pluckDecay = rand(0.12, 0.35);
+    houseTimbre.envAmount = rand(300, 2000);
+    houseTimbre.subMix = rand(0.15, 0.6);
+  }
+
   // ---------- Audio graph (built once, on first Play) ----------
   let ctx = null;
   let noiseBuffer = null;
@@ -236,6 +379,7 @@
   let kickTrim, subTrim, bassFilter, bassShaper, bassTrim;
   let snareDry, snareSend, hatsDry, hatsSend, reverbNode, reverbReturn;
   let shaperDirty = false;
+  let acidVoice = null;
 
   function makeNoiseBuffer() {
     const len = ctx.sampleRate * 2;
@@ -269,19 +413,27 @@
     return curve;
   }
 
+  function currentDriveAmount() {
+    let amt = (params.drive / 100) * 12;
+    if (genre === "acid") amt += acidTimbre.distortionExtra;
+    return amt;
+  }
+
   function cutoffFromSlider(v) {
     return 80 * Math.pow(6000 / 80, v / 100);
   }
   function resonanceFromSlider(v) {
     return 0.1 + (v / 100) * 19.9;
   }
+  function effectiveCutoff() {
+    const base = cutoffFromSlider(params.cutoff);
+    return breakdownActive ? Math.min(base, 350) : base;
+  }
 
   function updateBassFilter() {
     if (!ctx) return;
-    const base = cutoffFromSlider(params.cutoff);
-    const eff = breakdownActive ? Math.min(base, 350) : base;
     const now = ctx.currentTime;
-    bassFilter.frequency.setTargetAtTime(eff, now, 0.04);
+    bassFilter.frequency.setTargetAtTime(effectiveCutoff(), now, 0.04);
     bassFilter.Q.setTargetAtTime(resonanceFromSlider(params.resonance), now, 0.04);
   }
 
@@ -325,10 +477,10 @@
 
     bassFilter = ctx.createBiquadFilter();
     bassFilter.type = "lowpass";
-    bassFilter.frequency.value = cutoffFromSlider(params.cutoff);
+    bassFilter.frequency.value = effectiveCutoff();
     bassFilter.Q.value = resonanceFromSlider(params.resonance);
     bassShaper = ctx.createWaveShaper();
-    bassShaper.curve = makeDistortionCurve((params.drive / 100) * 12);
+    bassShaper.curve = makeDistortionCurve(currentDriveAmount());
     bassShaper.oversample = "2x";
     bassTrim = ctx.createGain(); bassTrim.gain.value = 0.85;
     bassFilter.connect(bassShaper).connect(bassTrim).connect(masterGain);
@@ -345,25 +497,25 @@
     hatsSend = ctx.createGain(); hatsSend.gain.value = (params.space / 100) * 0.7; hatsSend.connect(reverbNode);
   }
 
-  // ---------- Synthesis ----------
+  // ---------- Synthesis: shared kick / snare / hats ----------
   function playKick(time, accent = 1) {
     if (mutes.kick) return;
     const o = ctx.createOscillator();
     o.type = "sine";
-    o.frequency.setValueAtTime(140, time);
-    o.frequency.exponentialRampToValueAtTime(45, time + 0.09);
+    o.frequency.setValueAtTime(kickTimbre.startFreq, time);
+    o.frequency.exponentialRampToValueAtTime(Math.max(kickTimbre.endFreq, 20), time + kickTimbre.pitchDecay);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, time);
     g.gain.exponentialRampToValueAtTime(Math.max(1.0 * accent, 0.001), time + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.001, time + 0.32);
+    g.gain.exponentialRampToValueAtTime(0.001, time + kickTimbre.ampDecay);
     o.connect(g).connect(kickTrim);
-    o.start(time); o.stop(time + 0.34);
+    o.start(time); o.stop(time + kickTimbre.ampDecay + 0.02);
 
     const src = ctx.createBufferSource(); src.buffer = noiseBuffer;
-    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2000;
+    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = kickTimbre.clickHp;
     const cg = ctx.createGain();
     cg.gain.setValueAtTime(0.0001, time);
-    cg.gain.exponentialRampToValueAtTime(Math.max(0.5 * accent, 0.001), time + 0.002);
+    cg.gain.exponentialRampToValueAtTime(Math.max(kickTimbre.clickAmount * accent, 0.001), time + 0.002);
     cg.gain.exponentialRampToValueAtTime(0.001, time + 0.02);
     src.connect(hp).connect(cg).connect(kickTrim);
     src.start(time); src.stop(time + 0.03);
@@ -372,30 +524,30 @@
   function playSnare(time, accent = 1) {
     if (mutes.snare) return;
     const src = ctx.createBufferSource(); src.buffer = noiseBuffer;
-    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1600; bp.Q.value = 0.7;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = snareTimbre.noiseFreq; bp.Q.value = snareTimbre.noiseQ;
     const ng = ctx.createGain();
     ng.gain.setValueAtTime(0.0001, time);
     ng.gain.exponentialRampToValueAtTime(Math.max(0.9 * accent, 0.001), time + 0.004);
-    ng.gain.exponentialRampToValueAtTime(0.001, time + 0.16);
+    ng.gain.exponentialRampToValueAtTime(0.001, time + snareTimbre.noiseDecay);
     src.connect(bp).connect(ng);
     ng.connect(snareDry); ng.connect(snareSend);
-    src.start(time); src.stop(time + 0.18);
+    src.start(time); src.stop(time + snareTimbre.noiseDecay + 0.02);
 
-    const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = 190;
+    const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = snareTimbre.toneFreq;
     const og = ctx.createGain();
     og.gain.setValueAtTime(0.0001, time);
-    og.gain.exponentialRampToValueAtTime(Math.max(0.45 * accent, 0.001), time + 0.004);
-    og.gain.exponentialRampToValueAtTime(0.001, time + 0.09);
+    og.gain.exponentialRampToValueAtTime(Math.max(snareTimbre.toneMix * accent, 0.001), time + 0.004);
+    og.gain.exponentialRampToValueAtTime(0.001, time + snareTimbre.toneDecay);
     o.connect(og); og.connect(snareDry); og.connect(snareSend);
-    o.start(time); o.stop(time + 0.1);
+    o.start(time); o.stop(time + snareTimbre.toneDecay + 0.02);
   }
 
   function playHat(time, open = false, accent = 1) {
     if (mutes.hats) return;
     const src = ctx.createBufferSource(); src.buffer = noiseBuffer;
-    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = open ? 6000 : 8000;
+    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = open ? hatsTimbre.openHp : hatsTimbre.closedHp;
     const g = ctx.createGain();
-    const dur = open ? 0.22 : 0.045;
+    const dur = open ? hatsTimbre.openDecay : hatsTimbre.closedDecay;
     g.gain.setValueAtTime(0.0001, time);
     g.gain.exponentialRampToValueAtTime(Math.max(0.28 * accent, 0.0015), time + 0.003);
     g.gain.exponentialRampToValueAtTime(0.001, time + dur);
@@ -404,10 +556,11 @@
     src.start(time); src.stop(time + dur + 0.02);
   }
 
+  // ---------- Synthesis: DNB Reese bass ----------
   function playBassNote(time, freq, dur, accent = 1) {
     if (mutes.bass) return;
-    const o1 = ctx.createOscillator(); o1.type = "sawtooth"; o1.frequency.setValueAtTime(freq, time); o1.detune.setValueAtTime(-8, time);
-    const o2 = ctx.createOscillator(); o2.type = "sawtooth"; o2.frequency.setValueAtTime(freq, time); o2.detune.setValueAtTime(9, time);
+    const o1 = ctx.createOscillator(); o1.type = dnbBassTimbre.waveform; o1.frequency.setValueAtTime(freq, time); o1.detune.setValueAtTime(dnbBassTimbre.detune1, time);
+    const o2 = ctx.createOscillator(); o2.type = dnbBassTimbre.waveform; o2.frequency.setValueAtTime(freq, time); o2.detune.setValueAtTime(dnbBassTimbre.detune2, time);
     const env = ctx.createGain();
     const peak = 0.7 * accent, sustain = Math.max(0.35 * accent, 0.001);
     env.gain.setValueAtTime(0.0001, time);
@@ -421,10 +574,81 @@
     const sub = ctx.createOscillator(); sub.type = "sine"; sub.frequency.setValueAtTime(freq / 2, time);
     const subEnv = ctx.createGain();
     subEnv.gain.setValueAtTime(0.0001, time);
-    subEnv.gain.exponentialRampToValueAtTime(Math.max(0.9 * accent, 0.001), time + 0.015);
+    subEnv.gain.exponentialRampToValueAtTime(Math.max(dnbBassTimbre.subMix * accent, 0.001), time + 0.015);
     subEnv.gain.exponentialRampToValueAtTime(0.0001, time + dur);
     sub.connect(subEnv).connect(subTrim);
     sub.start(time); sub.stop(time + dur + 0.05);
+  }
+
+  // ---------- Synthesis: ACID monophonic 303-style voice ----------
+  function ensureAcidVoice() {
+    if (acidVoice || !ctx) return;
+    const osc = ctx.createOscillator();
+    osc.type = acidTimbre.waveform;
+    osc.frequency.value = ACID_ROOT;
+    const ampEnv = ctx.createGain();
+    ampEnv.gain.value = 0.0001;
+    osc.connect(ampEnv).connect(bassFilter);
+    osc.start();
+    acidVoice = { osc, ampEnv, lastFreq: ACID_ROOT, incomingSlide: false };
+  }
+  function teardownAcidVoice() {
+    if (!acidVoice) return;
+    try { acidVoice.osc.stop(); } catch (e) {}
+    acidVoice = null;
+  }
+  function playAcidStep(time, note) {
+    if (!acidVoice) return;
+    if (!note) { acidVoice.incomingSlide = false; return; }
+    const freq = ACID_ROOT * Math.pow(2, note.degree / 12);
+    if (mutes.bass) { acidVoice.lastFreq = freq; acidVoice.incomingSlide = !!note.slide; return; }
+    const baseCutoff = effectiveCutoff();
+    if (acidVoice.incomingSlide) {
+      acidVoice.osc.frequency.cancelScheduledValues(time);
+      acidVoice.osc.frequency.setValueAtTime(acidVoice.lastFreq, time);
+      acidVoice.osc.frequency.linearRampToValueAtTime(freq, time + acidTimbre.slideTime);
+    } else {
+      acidVoice.osc.frequency.cancelScheduledValues(time);
+      acidVoice.osc.frequency.setValueAtTime(freq, time);
+      const peak = Math.min(baseCutoff + acidTimbre.envModAmount * (note.accent ? acidTimbre.accentBoost : 1), 9500);
+      bassFilter.frequency.cancelScheduledValues(time);
+      bassFilter.frequency.setValueAtTime(peak, time);
+      bassFilter.frequency.exponentialRampToValueAtTime(Math.max(baseCutoff, 60), time + acidTimbre.decayTime);
+      acidVoice.ampEnv.gain.cancelScheduledValues(time);
+      acidVoice.ampEnv.gain.setValueAtTime(0.0001, time);
+      acidVoice.ampEnv.gain.exponentialRampToValueAtTime(Math.max(note.accent ? 0.95 : 0.55, 0.001), time + 0.006);
+      acidVoice.ampEnv.gain.exponentialRampToValueAtTime(0.001, time + acidTimbre.decayTime * 1.2);
+    }
+    acidVoice.lastFreq = freq;
+    acidVoice.incomingSlide = !!note.slide;
+  }
+
+  // ---------- Synthesis: HOUSE pluck bass ----------
+  function playHousePluck(time, freq, dur, accent = 1) {
+    if (mutes.bass) return;
+    const o = ctx.createOscillator(); o.type = houseTimbre.waveform; o.frequency.setValueAtTime(freq, time);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.0001, time);
+    env.gain.exponentialRampToValueAtTime(Math.max(0.8 * accent, 0.001), time + 0.008);
+    env.gain.exponentialRampToValueAtTime(0.001, time + houseTimbre.pluckDecay);
+    o.connect(env).connect(bassFilter);
+    o.start(time); o.stop(time + houseTimbre.pluckDecay + 0.05);
+
+    const base = effectiveCutoff();
+    const peak = Math.min(base + houseTimbre.envAmount, 8500);
+    bassFilter.frequency.cancelScheduledValues(time);
+    bassFilter.frequency.setValueAtTime(peak, time);
+    bassFilter.frequency.exponentialRampToValueAtTime(Math.max(base, 60), time + houseTimbre.pluckDecay * 0.8);
+
+    if (houseTimbre.subMix > 0.05) {
+      const sub = ctx.createOscillator(); sub.type = "sine"; sub.frequency.setValueAtTime(freq / 2, time);
+      const subEnv = ctx.createGain();
+      subEnv.gain.setValueAtTime(0.0001, time);
+      subEnv.gain.exponentialRampToValueAtTime(Math.max(houseTimbre.subMix * (params.sub / 100) * accent, 0.001), time + 0.01);
+      subEnv.gain.exponentialRampToValueAtTime(0.001, time + houseTimbre.pluckDecay);
+      sub.connect(subEnv).connect(subTrim);
+      sub.start(time); sub.stop(time + houseTimbre.pluckDecay + 0.05);
+    }
   }
 
   // ---------- Scheduler ----------
@@ -439,44 +663,57 @@
   const noteQueue = [];
 
   function scheduleStep(step, time) {
+    const st = genreState[genre];
     const drumAccent = breakdownActive ? 0.15 : 1;
     const hits = { kick: false, snare: false, hat: false, bass: false };
     const inFillTail = fillActive && step >= 12;
 
     if (!inFillTail) {
-      let kickHit = false, snareHit = false, kickGhost = false, snareGhost = false;
+      let kickHit = false, secHit = false, kickGhost = false, secGhost = false;
       if (halfTime) {
         kickHit = step === 0;
-        snareHit = step === 8;
+        secHit = step === 8;
       } else {
-        kickHit = currentPattern.kick[step] === 1;
-        snareHit = currentPattern.snare[step] === 1;
-        if (!snareHit && Math.random() < (params.complexity / 100) * 0.18) snareGhost = true;
+        kickHit = st.drum.kick[step] === 1;
+        secHit = st.drum.secondary[step] === 1;
+        if (!secHit && Math.random() < (params.complexity / 100) * 0.18) secGhost = true;
         if (!kickHit && Math.random() < (params.complexity / 100) * 0.10) kickGhost = true;
       }
       if (kickHit) { playKick(time, drumAccent); hits.kick = true; }
       else if (kickGhost) { playKick(time, 0.35 * drumAccent); hits.kick = true; }
-      if (snareHit) { playSnare(time, drumAccent); hits.snare = true; }
-      else if (snareGhost) { playSnare(time, 0.3 * drumAccent); hits.snare = true; }
+      if (secHit) { playSnare(time, drumAccent); hits.snare = true; }
+      else if (secGhost) { playSnare(time, 0.3 * drumAccent); hits.snare = true; }
 
       const isEighth = step % 2 === 0;
       let hatProb = isEighth ? 1.0 : params.hatsDensity / 100;
       if (halfTime) hatProb = Math.max(hatProb, 0.5);
       if (Math.random() < hatProb) {
-        const open = step === 14 && Math.random() < 0.2;
+        let open = false;
+        if (genre === "house" && (step === 2 || step === 6 || step === 10 || step === 14)) open = Math.random() < 0.8;
+        else if (genre === "dnb" && step === 14) open = Math.random() < 0.2;
         playHat(time, open, (isEighth ? 0.9 : 0.6) * (breakdownActive ? 0.6 : 1));
         hits.hat = true;
       }
     }
 
-    if (bassPattern[step]) {
-      const note = bassPattern[step];
-      const secondsPerBeat = 60 / params.bpm;
-      const sixteenth = secondsPerBeat / 4;
-      const freq = BASS_ROOT * Math.pow(2, note.degree / 12);
-      const dur = note.len * sixteenth * 0.92;
-      playBassNote(time, freq, dur, breakdownActive ? 0.8 : 1);
-      hits.bass = true;
+    if (genre === "acid") {
+      const note = inFillTail ? null : st.notes[step];
+      playAcidStep(time, note);
+      if (note) hits.bass = true;
+    } else {
+      const note = inFillTail ? null : st.notes[step];
+      if (note) {
+        const secondsPerBeat = 60 / params.bpm;
+        const sixteenth = secondsPerBeat / 4;
+        if (genre === "dnb") {
+          const freq = BASS_ROOT * Math.pow(2, note.degree / 12);
+          playBassNote(time, freq, note.len * sixteenth * 0.92, breakdownActive ? 0.8 : 1);
+        } else {
+          const freq = HOUSE_ROOT * Math.pow(2, note.degree / 12);
+          playHousePluck(time, freq, note.len * sixteenth * 0.85, breakdownActive ? 0.6 : 1);
+        }
+        hits.bass = true;
+      }
     }
 
     if (fillActive && step === 12) {
@@ -504,8 +741,12 @@
     currentStep++;
     if (currentStep >= STEPS) {
       currentStep = 0;
-      if (pendingPattern) { currentPattern = pendingPattern; pendingPattern = null; }
-      if (pendingBassline) { bassPattern = pendingBassline; pendingBassline = null; }
+      GENRES.forEach(g => {
+        const st = genreState[g];
+        if (st.pendingDrum) { st.drum = st.pendingDrum; st.pendingDrum = null; }
+        if (st.pendingNotes) { st.notes = st.pendingNotes; st.pendingNotes = null; }
+      });
+      if (pendingGenre) { applyGenreSwitch(pendingGenre); pendingGenre = null; updateGenreButtons(); }
       fillActive = fillQueued;
       fillQueued = false;
     }
@@ -519,14 +760,26 @@
     timerId = setTimeout(scheduler, lookaheadMs);
   }
 
+  function applyGenreSwitch(newGenre) {
+    if (newGenre === genre) return;
+    if (genre === "acid" && newGenre !== "acid") teardownAcidVoice();
+    genre = newGenre;
+    shaperDirty = true;
+    setGenreDefaults(newGenre);
+    if (newGenre === "acid") ensureAcidVoice();
+    updateSecondaryLabel();
+    updateBassHint();
+  }
+
   function start() {
     initAudio();
     if (ctx.state === "suspended") ctx.resume();
-    if (bassPattern.length === 0) bassPattern = generateBassline();
+    if (genre === "acid") ensureAcidVoice();
     isPlaying = true;
     currentStep = 0;
     fillActive = false; fillQueued = false;
-    pendingPattern = null; pendingBassline = null;
+    pendingGenre = null;
+    GENRES.forEach(g => { genreState[g].pendingDrum = null; genreState[g].pendingNotes = null; });
     nextNoteTime = ctx.currentTime + 0.05;
     scheduler();
     if (!drawing) { drawing = true; requestAnimationFrame(draw); }
@@ -535,6 +788,7 @@
   function stop() {
     isPlaying = false;
     clearTimeout(timerId);
+    teardownAcidVoice();
   }
 
   // ---------- Visualizer ----------
@@ -586,12 +840,13 @@
       vctx.fillRect(i * barW, 74 - bh, barW - 1, bh);
     }
 
-    // step grid: kick / snare / bass rows
+    // step grid: kick / secondary / bass rows for the active genre
+    const st = genreState[genre];
     const gridTop = 92, rowH = 20, cols = STEPS, colW = w / cols;
     const rows = [
-      { key: "kick", label: "K", data: currentPattern.kick, color: "57,255,136" },
-      { key: "snare", label: "S", data: currentPattern.snare, color: "255,61,240" },
-      { key: "bass", label: "B", data: bassPattern.map(n => (n ? 1 : 0)), color: "255,176,61" },
+      { label: "K", data: st.drum.kick, color: "57,255,136" },
+      { label: genre === "dnb" ? "S" : "C", data: st.drum.secondary, color: "255,61,240" },
+      { label: "B", data: st.notes.map(n => (n ? 1 : 0)), color: "255,176,61" },
     ];
     vctx.font = "10px monospace";
     rows.forEach((row, ri) => {
@@ -615,7 +870,7 @@
     // flash LEDs
     const leds = [
       { key: "kick", x: 16, color: "57,255,136", label: "KICK" },
-      { key: "snare", x: 96, color: "255,61,240", label: "SNARE" },
+      { key: "snare", x: 96, color: "255,61,240", label: genre === "dnb" ? "SNARE" : "CLAP" },
       { key: "hat", x: 186, color: "255,255,255", label: "HAT" },
       { key: "bass", x: 262, color: "255,176,61", label: "BASS" },
     ];
@@ -638,6 +893,7 @@
   }
 
   // ---------- UI wiring ----------
+  const sliderEls = {};
   const sliderRoot = document.getElementById("sliders");
   SLIDER_DEFS.forEach(def => {
     const row = document.createElement("div");
@@ -649,6 +905,7 @@
     `;
     const input = row.querySelector("input");
     const output = row.querySelector("output");
+    sliderEls[def.key] = { input, output, def };
     input.addEventListener("input", () => {
       const v = Number(input.value);
       params[def.key] = v;
@@ -664,9 +921,48 @@
     sliderRoot.appendChild(row);
   });
 
+  function setSliderValue(key, value) {
+    const rec = sliderEls[key];
+    if (!rec) return;
+    params[key] = value;
+    rec.input.value = value;
+    rec.output.textContent = `${value}${rec.def.unit}`;
+    const p = ((value - rec.def.min) / (rec.def.max - rec.def.min)) * 100;
+    rec.input.style.setProperty("--fill", p + "%");
+  }
+
+  function setGenreDefaults(g) {
+    const d = GENRE_DEFAULTS[g];
+    setSliderValue("bpm", d.bpm);
+    setSliderValue("swing", d.swing);
+    setSliderValue("complexity", d.complexity);
+    setSliderValue("hatsDensity", d.hatsDensity);
+  }
+
+  function updateSecondaryLabel() {
+    const el = document.getElementById("secondaryName");
+    if (el) el.textContent = genre === "dnb" ? "Snare" : "Clap";
+  }
+
+  function updateBassHint() {
+    const el = document.getElementById("bassHint");
+    if (!el) return;
+    if (genre === "dnb") el.textContent = "DNB: cutoff/レゾナンス/ディストーションはReeseベースの質感に効きます。";
+    else if (genre === "acid") el.textContent = "ACID: cutoff/レゾナンスは303風フィルターの基準値。ノートごとに\"クワッ\"と開閉し、アクセント/スライドは音色ダイスで変化します。";
+    else el.textContent = "HOUSE: cutoff/レゾナンスはプラック・ベースの開き具合に効きます。";
+  }
+
+  function updateGenreButtons() {
+    document.querySelectorAll(".genre-btn").forEach(btn => {
+      const g = btn.dataset.genre;
+      btn.classList.toggle("active", g === genre);
+      btn.classList.toggle("pending", g === pendingGenre);
+    });
+  }
+
   setInterval(() => {
     if (shaperDirty && ctx) {
-      bassShaper.curve = makeDistortionCurve((params.drive / 100) * 12);
+      bassShaper.curve = makeDistortionCurve(currentDriveAmount());
       shaperDirty = false;
     }
   }, 120);
@@ -685,16 +981,18 @@
   });
 
   document.getElementById("randomizeBtn").addEventListener("click", () => {
+    const st = genreState[genre];
     let idx;
-    do { idx = (Math.random() * PATTERN_BANK.length) | 0; } while (idx === currentPatternIndex && PATTERN_BANK.length > 1);
-    currentPatternIndex = idx;
-    const next = PATTERN_BANK[idx];
-    if (isPlaying) pendingPattern = next; else currentPattern = next;
+    do { idx = (Math.random() * st.bank.length) | 0; } while (idx === st.bankIndex && st.bank.length > 1);
+    st.bankIndex = idx;
+    const next = st.bank[idx];
+    if (isPlaying) st.pendingDrum = next; else st.drum = next;
   });
 
   document.getElementById("basslineBtn").addEventListener("click", () => {
-    const next = generateBassline();
-    if (isPlaying) pendingBassline = next; else bassPattern = next;
+    const st = genreState[genre];
+    const next = regenerateNotesForGenre(genre);
+    if (isPlaying) st.pendingNotes = next; else st.notes = next;
   });
 
   document.getElementById("fillBtn").addEventListener("click", () => {
@@ -723,7 +1021,36 @@
     });
   });
 
-  bassPattern = generateBassline();
+  document.querySelectorAll("[data-dice]").forEach(btn => {
+    const target = btn.dataset.dice;
+    btn.addEventListener("click", () => {
+      if (target === "kick") randomizeKickTimbre();
+      else if (target === "secondary") randomizeSnareTimbre();
+      else if (target === "hats") randomizeHatsTimbre();
+      else if (target === "bass") {
+        if (genre === "dnb") randomizeDnbBassTimbre();
+        else if (genre === "acid") randomizeAcidTimbre();
+        else randomizeHouseTimbre();
+      }
+    });
+  });
+
+  document.querySelectorAll(".genre-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const g = btn.dataset.genre;
+      if (g === genre || g === pendingGenre) return;
+      if (isPlaying) {
+        pendingGenre = g;
+      } else {
+        applyGenreSwitch(g);
+      }
+      updateGenreButtons();
+    });
+  });
+
+  updateGenreButtons();
+  updateSecondaryLabel();
+  updateBassHint();
   resizeCanvas();
   requestAnimationFrame(draw);
   drawing = true;
