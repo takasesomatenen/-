@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1600"
+   LastUpgradeVersion = "1500"
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "AB0100000000000000000006"
+               BlueprintIdentifier = "AB0200000000000000000026"
                BuildableName = "HapticVoid.app"
                BlueprintName = "HapticVoid"
                ReferencedContainer = "container:HapticVoid.xcodeproj">
@@ -43,7 +43,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "AB0100000000000000000006"
+            BlueprintIdentifier = "AB0200000000000000000026"
             BuildableName = "HapticVoid.app"
             BlueprintName = "HapticVoid"
             ReferencedContainer = "container:HapticVoid.xcodeproj">
@@ -60,7 +60,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "AB0100000000000000000006"
+            BlueprintIdentifier = "AB0200000000000000000026"
             BuildableName = "HapticVoid.app"
             BlueprintName = "HapticVoid"
             ReferencedContainer = "container:HapticVoid.xcodeproj">

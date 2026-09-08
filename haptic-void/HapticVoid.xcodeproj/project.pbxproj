@@ -3,19 +3,44 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 56;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AB0200000000000000000002 /* HapticVoidApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000001 /* HapticVoidApp.swift */; };
+		AB0200000000000000000006 /* Tuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000005 /* Tuning.swift */; };
+		AB0200000000000000000008 /* MathHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000007 /* MathHelpers.swift */; };
+		AB020000000000000000000A /* DisplayLinkDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000009 /* DisplayLinkDriver.swift */; };
+		AB020000000000000000000C /* ExplorationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB020000000000000000000B /* ExplorationEngine.swift */; };
+		AB020000000000000000000E /* HapticsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB020000000000000000000D /* HapticsController.swift */; };
+		AB0200000000000000000010 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB020000000000000000000F /* AudioController.swift */; };
+		AB0200000000000000000012 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000011 /* RootView.swift */; };
+		AB0200000000000000000014 /* TitleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000013 /* TitleView.swift */; };
+		AB0200000000000000000016 /* ExplorationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000015 /* ExplorationView.swift */; };
+		AB0200000000000000000018 /* DebugOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000017 /* DebugOverlay.swift */; };
+		AB020000000000000000001A /* MultiFingerTapCatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000019 /* MultiFingerTapCatcher.swift */; };
+		AB0200000000000000000004 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB0200000000000000000003 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
-		AB0100000000000000000001 /* HapticVoid.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HapticVoid.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB020000000000000000001F /* HapticVoid.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HapticVoid.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB0200000000000000000001 /* HapticVoidApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticVoidApp.swift; sourceTree = "<group>"; };
+		AB0200000000000000000005 /* Tuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tuning.swift; sourceTree = "<group>"; };
+		AB0200000000000000000007 /* MathHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathHelpers.swift; sourceTree = "<group>"; };
+		AB0200000000000000000009 /* DisplayLinkDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayLinkDriver.swift; sourceTree = "<group>"; };
+		AB020000000000000000000B /* ExplorationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorationEngine.swift; sourceTree = "<group>"; };
+		AB020000000000000000000D /* HapticsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsController.swift; sourceTree = "<group>"; };
+		AB020000000000000000000F /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
+		AB0200000000000000000011 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		AB0200000000000000000013 /* TitleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitleView.swift; sourceTree = "<group>"; };
+		AB0200000000000000000015 /* ExplorationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorationView.swift; sourceTree = "<group>"; };
+		AB0200000000000000000017 /* DebugOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugOverlay.swift; sourceTree = "<group>"; };
+		AB0200000000000000000019 /* MultiFingerTapCatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiFingerTapCatcher.swift; sourceTree = "<group>"; };
+		AB0200000000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		AB0100000000000000000002 /* HapticVoid */ = {isa = PBXFileSystemSynchronizedRootGroup; path = HapticVoid; sourceTree = "<group>"; };
-/* End PBXFileSystemSynchronizedRootGroup section */
-
 /* Begin PBXFrameworksBuildPhase section */
-		AB0100000000000000000003 /* Frameworks */ = {
+		AB0200000000000000000023 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -25,64 +50,111 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		AB0100000000000000000004 = {
+		AB0200000000000000000021 = {
 			isa = PBXGroup;
 			children = (
-				AB0100000000000000000002 /* HapticVoid */,
-				AB0100000000000000000005 /* Products */,
+				AB0200000000000000000020 /* HapticVoid */,
+				AB0200000000000000000022 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		AB0100000000000000000005 /* Products */ = {
+		AB0200000000000000000022 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AB0100000000000000000001 /* HapticVoid.app */,
+				AB020000000000000000001F /* HapticVoid.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AB0200000000000000000020 /* HapticVoid */ = {
+			isa = PBXGroup;
+			children = (
+				AB0200000000000000000001 /* HapticVoidApp.swift */,
+				AB020000000000000000001B /* Core */,
+				AB020000000000000000001C /* Haptics */,
+				AB020000000000000000001D /* Audio */,
+				AB020000000000000000001E /* Views */,
+				AB0200000000000000000003 /* Assets.xcassets */,
+			);
+			path = HapticVoid;
+			sourceTree = "<group>";
+		};
+		AB020000000000000000001B /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				AB0200000000000000000005 /* Tuning.swift */,
+				AB0200000000000000000007 /* MathHelpers.swift */,
+				AB0200000000000000000009 /* DisplayLinkDriver.swift */,
+				AB020000000000000000000B /* ExplorationEngine.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		AB020000000000000000001C /* Haptics */ = {
+			isa = PBXGroup;
+			children = (
+				AB020000000000000000000D /* HapticsController.swift */,
+			);
+			path = Haptics;
+			sourceTree = "<group>";
+		};
+		AB020000000000000000001D /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				AB020000000000000000000F /* AudioController.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		AB020000000000000000001E /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				AB0200000000000000000011 /* RootView.swift */,
+				AB0200000000000000000013 /* TitleView.swift */,
+				AB0200000000000000000015 /* ExplorationView.swift */,
+				AB0200000000000000000017 /* DebugOverlay.swift */,
+				AB0200000000000000000019 /* MultiFingerTapCatcher.swift */,
+			);
+			path = Views;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		AB0100000000000000000006 /* HapticVoid */ = {
+		AB0200000000000000000026 /* HapticVoid */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AB0100000000000000000007 /* Build configuration list for PBXNativeTarget "HapticVoid" */;
+			buildConfigurationList = AB0200000000000000000029 /* Build configuration list for PBXNativeTarget "HapticVoid" */;
 			buildPhases = (
-				AB0100000000000000000008 /* Sources */,
-				AB0100000000000000000003 /* Frameworks */,
-				AB0100000000000000000009 /* Resources */,
+				AB0200000000000000000024 /* Sources */,
+				AB0200000000000000000023 /* Frameworks */,
+				AB0200000000000000000025 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			fileSystemSynchronizedGroups = (
-				AB0100000000000000000002 /* HapticVoid */,
-			);
 			name = HapticVoid;
-			packageProductDependencies = (
-			);
 			productName = HapticVoid;
-			productReference = AB0100000000000000000001 /* HapticVoid.app */;
+			productReference = AB020000000000000000001F /* HapticVoid.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		AB0100000000000000000010 /* Project object */ = {
+		AB0200000000000000000027 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1600;
-				LastUpgradeCheck = 1600;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
-					AB0100000000000000000006 = {
-						CreatedOnToolsVersion = 16.0;
+					AB0200000000000000000026 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
-			buildConfigurationList = AB0100000000000000000011 /* Build configuration list for PBXProject "HapticVoid" */;
-			compatibilityVersion = "Xcode 15.0";
+			buildConfigurationList = AB0200000000000000000028 /* Build configuration list for PBXProject "HapticVoid" */;
+			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -90,44 +162,54 @@
 				Base,
 				ja,
 			);
-			mainGroup = AB0100000000000000000004;
-			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
-			productRefGroup = AB0100000000000000000005 /* Products */;
+			mainGroup = AB0200000000000000000021;
+			productRefGroup = AB0200000000000000000022 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				AB0100000000000000000006 /* HapticVoid */,
+				AB0200000000000000000026 /* HapticVoid */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		AB0100000000000000000009 /* Resources */ = {
+		AB0200000000000000000025 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AB0200000000000000000004 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		AB0100000000000000000008 /* Sources */ = {
+		AB0200000000000000000024 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AB0200000000000000000002 /* HapticVoidApp.swift in Sources */,
+				AB0200000000000000000006 /* Tuning.swift in Sources */,
+				AB0200000000000000000008 /* MathHelpers.swift in Sources */,
+				AB020000000000000000000A /* DisplayLinkDriver.swift in Sources */,
+				AB020000000000000000000C /* ExplorationEngine.swift in Sources */,
+				AB020000000000000000000E /* HapticsController.swift in Sources */,
+				AB0200000000000000000010 /* AudioController.swift in Sources */,
+				AB0200000000000000000012 /* RootView.swift in Sources */,
+				AB0200000000000000000014 /* TitleView.swift in Sources */,
+				AB0200000000000000000016 /* ExplorationView.swift in Sources */,
+				AB0200000000000000000018 /* DebugOverlay.swift in Sources */,
+				AB020000000000000000001A /* MultiFingerTapCatcher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		AB0100000000000000000012 /* Debug */ = {
+		AB020000000000000000002A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_ENABLE_MODULES = YES;
@@ -137,37 +219,35 @@
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
-				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
 		};
-		AB0100000000000000000013 /* Release */ = {
+		AB020000000000000000002B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_ENABLE_MODULES = YES;
@@ -177,10 +257,7 @@
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
@@ -188,22 +265,23 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				MTL_ENABLE_DEBUG_INFO = NO;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
-		AB0100000000000000000014 /* Debug */ = {
+		AB020000000000000000002C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -225,14 +303,13 @@
 			};
 			name = Debug;
 		};
-		AB0100000000000000000015 /* Release */ = {
+		AB020000000000000000002D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -257,25 +334,25 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		AB0100000000000000000011 /* Build configuration list for PBXProject "HapticVoid" */ = {
+		AB0200000000000000000028 /* Build configuration list for PBXProject "HapticVoid" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				AB0100000000000000000012 /* Debug */,
-				AB0100000000000000000013 /* Release */,
+				AB020000000000000000002A /* Debug */,
+				AB020000000000000000002B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AB0100000000000000000007 /* Build configuration list for PBXNativeTarget "HapticVoid" */ = {
+		AB0200000000000000000029 /* Build configuration list for PBXNativeTarget "HapticVoid" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				AB0100000000000000000014 /* Debug */,
-				AB0100000000000000000015 /* Release */,
+				AB020000000000000000002C /* Debug */,
+				AB020000000000000000002D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = AB0100000000000000000010 /* Project object */;
+	rootObject = AB0200000000000000000027 /* Project object */;
 }

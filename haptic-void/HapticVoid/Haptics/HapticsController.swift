@@ -169,6 +169,86 @@ final class HapticsController {
         }
     }
 
+    // MARK: - 動作確認
+
+    /// 実機で触覚が動いているかを確かめるためのセルフテスト。
+    ///
+    /// 「弱く・ざらついた振動」から「強く・滑らかな振動」へ2秒かけて連続的に変化させ、
+    /// 最後に到達パターン相当のパルスを鳴らす。
+    /// このゲームで使っている表現（強度グラデーション＋鋭さの変化＋トランジェント）を
+    /// ひととおり通すので、これが感じられれば本編も動く。
+    /// - Returns: 再生を開始できたら true。
+    @discardableResult
+    func playSelfTest() -> Bool {
+        guard supportsHaptics else {
+            lastMessage = "この端末では Core Haptics を利用できません（シミュレータ／非対応機種）"
+            return false
+        }
+        prepare()
+        guard let engine = engine else { return false }
+        guard !isContinuousRunning else { return false }
+
+        let sweepDuration: TimeInterval = 2.0
+        do {
+            var events: [CHHapticEvent] = [
+                CHHapticEvent(
+                    eventType: .hapticContinuous,
+                    parameters: [
+                        CHHapticEventParameter(parameterID: .hapticIntensity, value: 1.0),
+                        CHHapticEventParameter(parameterID: .hapticSharpness,
+                                               value: Float(Tuning.Haptics.baseSharpness))
+                    ],
+                    relativeTime: 0,
+                    duration: sweepDuration
+                )
+            ]
+            // 仕上げのパルス（到達パターンと同じ質感）。
+            let pulseTimes: [TimeInterval] = [sweepDuration + 0.15, sweepDuration + 0.235, sweepDuration + 0.32]
+            for time in pulseTimes {
+                events.append(
+                    CHHapticEvent(
+                        eventType: .hapticTransient,
+                        parameters: [
+                            CHHapticEventParameter(parameterID: .hapticIntensity, value: 1.0),
+                            CHHapticEventParameter(parameterID: .hapticSharpness, value: 1.0)
+                        ],
+                        relativeTime: time
+                    )
+                )
+            }
+
+            // 弱い → 強い
+            let intensityCurve = CHHapticParameterCurve(
+                parameterID: .hapticIntensityControl,
+                controlPoints: [
+                    CHHapticParameterCurve.ControlPoint(relativeTime: 0, value: 0.05),
+                    CHHapticParameterCurve.ControlPoint(relativeTime: sweepDuration, value: 1.0)
+                ],
+                relativeTime: 0
+            )
+            // ざらつき → 滑らか（baseSharpness からの相対オフセット）
+            let sharpnessCurve = CHHapticParameterCurve(
+                parameterID: .hapticSharpnessControl,
+                controlPoints: [
+                    CHHapticParameterCurve.ControlPoint(relativeTime: 0, value: 0.45),
+                    CHHapticParameterCurve.ControlPoint(relativeTime: sweepDuration, value: -0.45)
+                ],
+                relativeTime: 0
+            )
+
+            let pattern = try CHHapticPattern(events: events,
+                                              parameterCurves: [intensityCurve, sharpnessCurve])
+            let player = try engine.makePlayer(with: pattern)
+            arrivalPlayer = player
+            try player.start(atTime: CHHapticTimeImmediate)
+            lastMessage = nil
+            return true
+        } catch {
+            lastMessage = "セルフテストの再生に失敗: \(error.localizedDescription)"
+            return false
+        }
+    }
+
     // MARK: - 到達フィードバック
 
     /// 到達したことがはっきり分かる専用パターン。
