@@ -1,0 +1,81 @@
+import SwiftUI
+
+/// 最低限のタイトル画面。本体は真っ黒な探索画面なので、ここは静かに始めるための入り口。
+struct TitleView: View {
+    @EnvironmentObject private var engine: ExplorationEngine
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 14) {
+                Text("VOID")
+                    .font(.system(size: 46, weight: .ultraLight, design: .rounded))
+                    .tracking(18)
+                    .foregroundStyle(.white.opacity(0.9))
+                    // 隠しスイッチ: タイトルを長押しでデバッグ表示を切り替える。
+                    .onLongPressGesture(minimumDuration: 1.2) {
+                        engine.toggleDebug()
+                    }
+
+                Text("見えない場所を、指で探す")
+                    .font(.system(size: 14, weight: .light, design: .rounded))
+                    .tracking(2)
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+
+            Spacer()
+
+            VStack(alignment: .leading, spacing: 10) {
+                instruction("画面のどこかに、見えない目的地がひとつあります。")
+                instruction("指を置いて、ゆっくり滑らせてください。")
+                instruction("近いほど振動は強く、近づいている間はまろやかに。")
+                instruction("遠ざかると、ざらついて不規則になります。")
+                instruction("できれば目を閉じて。失敗はありません。")
+            }
+            .frame(maxWidth: 320, alignment: .leading)
+
+            Spacer()
+
+            Button {
+                engine.beginSession()
+            } label: {
+                Text("はじめる")
+                    .font(.system(size: 17, weight: .regular, design: .rounded))
+                    .tracking(4)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(maxWidth: 240)
+                    .padding(.vertical, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(.white.opacity(0.25), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+
+            VStack(spacing: 6) {
+                Text("2本指ダブルタップでタイトルへ / 3本指タップでデバッグ表示")
+                if !engine.supportsHaptics {
+                    Text("⚠︎ この端末では触覚が再生されません（音のみで動作します）")
+                        .foregroundStyle(.orange.opacity(0.7))
+                }
+            }
+            .font(.system(size: 11, weight: .light, design: .rounded))
+            .foregroundStyle(.white.opacity(0.28))
+            .multilineTextAlignment(.center)
+            .padding(.top, 28)
+
+            Spacer()
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+    }
+
+    private func instruction(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 13, weight: .light, design: .rounded))
+            .foregroundStyle(.white.opacity(0.38))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
