@@ -353,6 +353,16 @@ final class ExplorationEngine: ObservableObject {
         return clamped01(point.distance(to: target) / senseRange)
     }
 
+    // MARK: - 動作確認
+
+    /// タイトル画面の「触覚テスト」から呼ばれる。実機で触覚が鳴っているかの確認用。
+    /// 弱く／ざらついた振動 → 強く／滑らかな振動へ2秒かけて変化し、最後にパルスが鳴る。
+    /// - Returns: 再生を開始できたら true（シミュレータや非対応端末では false）。
+    @discardableResult
+    func testHaptics() -> Bool {
+        haptics.playSelfTest()
+    }
+
     // MARK: - デバッグ
 
     private func publishDebugSnapshot(intensity: Double? = nil, proximity: Double? = nil) {

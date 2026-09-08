@@ -4,7 +4,7 @@
 # で同じ構成のプロジェクトを再生成できる。
 name: HapticVoid
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: com.takasesoma
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -16,7 +16,7 @@ targets:
       - HapticVoid
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.HapticVoid
+        PRODUCT_BUNDLE_IDENTIFIER: com.takasesoma.HapticVoid
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"

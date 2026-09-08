@@ -3,6 +3,8 @@ import SwiftUI
 /// 最低限のタイトル画面。本体は真っ黒な探索画面なので、ここは静かに始めるための入り口。
 struct TitleView: View {
     @EnvironmentObject private var engine: ExplorationEngine
+    /// 触覚テストの結果表示（数秒で消える）。
+    @State private var hapticTestNote: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,7 +55,35 @@ struct TitleView: View {
             }
             .buttonStyle(.plain)
 
+            Button {
+                let started = engine.testHaptics()
+                hapticTestNote = started
+                    ? "触覚テストを再生中…"
+                    : (engine.statusMessage ?? "触覚を再生できませんでした")
+                Task {
+                    try? await Task.sleep(for: .seconds(3))
+                    hapticTestNote = nil
+                }
+            } label: {
+                Text("触覚テスト")
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .tracking(3)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .frame(maxWidth: 240)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(.white.opacity(0.14), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+
             VStack(spacing: 6) {
+                if let hapticTestNote {
+                    Text(hapticTestNote)
+                        .foregroundStyle(.white.opacity(0.5))
+                }
                 Text("2本指ダブルタップでタイトルへ / 3本指タップでデバッグ表示")
                 if !engine.supportsHaptics {
                     Text("⚠︎ この端末では触覚が再生されません（音のみで動作します）")
