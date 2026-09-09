@@ -1,10 +1,10 @@
 import SwiftUI
 import UIKit
 
-/// タイトルと探索画面を切り替えるだけの器。
+/// タイトルと歩行画面を切り替えるだけの器。
 /// 隠しジェスチャ（3本指タップ／2本指ダブルタップ）はここで常時受け付ける。
 struct RootView: View {
-    @EnvironmentObject private var engine: ExplorationEngine
+    @EnvironmentObject private var engine: WalkEngine
 
     var body: some View {
         ZStack {
@@ -14,8 +14,8 @@ struct RootView: View {
             case .title:
                 TitleView()
                     .transition(.opacity)
-            case .exploring, .arrived:
-                ExplorationView()
+            case .walking:
+                WalkView()
                     .transition(.opacity)
             }
         }
@@ -30,7 +30,7 @@ struct RootView: View {
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
         .onAppear {
-            // 目を閉じて探索している間に画面が落ちないようにする。
+            // 目を閉じて歩いている間に画面が落ちないようにする。
             UIApplication.shared.isIdleTimerDisabled = true
         }
         .onDisappear {

@@ -1,115 +1,79 @@
 import SwiftUI
 
-/// 開発中だけ表示する可視化レイヤ。
-/// 3本指タップ（またはタイトル長押し）で切り替わる。
+/// 3本指タップで出す確認用の表示。
+///
+/// 目を閉じて遊ぶゲームなので普段は完全に消えているが、
+/// 「感じたこと」と「実際の数値」がズレている箇所を切り分けるために使う。
 struct DebugOverlay: View {
-    @EnvironmentObject private var engine: ExplorationEngine
+    @EnvironmentObject private var engine: WalkEngine
 
     var body: some View {
-        let debug = engine.debug
+        VStack(alignment: .leading, spacing: 3) {
+            row("steps", "\(engine.debug.steps)")
+            row("heading", String(format: "%.1f°", engine.debug.headingDegrees))
+            row("position", String(format: "x %.1f  z %.1f", engine.debug.positionX, engine.debug.positionZ))
+            row("speed", String(format: "%.2f m/s", engine.debug.speed))
+            row("drift", String(format: "%+.2f°/step", engine.debug.driftDegrees))
 
-        ZStack(alignment: .topLeading) {
-            Canvas { context, _ in
-                guard debug.hasTarget else { return }
+            Divider().background(.white.opacity(0.2)).padding(.vertical, 4)
 
-                // 感知範囲のうっすらしたグラデーション（近さの目安）。
-                let glowRadius = CGFloat(debug.arrivalRadius * 6)
-                let glow = Path(ellipseIn: CGRect(
-                    x: debug.target.x - glowRadius, y: debug.target.y - glowRadius,
-                    width: glowRadius * 2, height: glowRadius * 2))
-                context.fill(glow, with: .radialGradient(
-                    Gradient(colors: [.green.opacity(0.16), .clear]),
-                    center: debug.target, startRadius: 0, endRadius: glowRadius))
+            row("swing", engine.debug.swingFootIsLeft ? "LEFT" : "RIGHT")
+            footRow("L", down: engine.debug.leftDown, progress: engine.debug.leftProgress)
+            footRow("R", down: engine.debug.rightDown, progress: engine.debug.rightProgress)
 
-                // 到達判定の円。
-                let radius = CGFloat(debug.arrivalRadius)
-                let circle = Path(ellipseIn: CGRect(
-                    x: debug.target.x - radius, y: debug.target.y - radius,
-                    width: radius * 2, height: radius * 2))
-                context.stroke(circle, with: .color(.green.opacity(0.8)), lineWidth: 1.5)
+            Divider().background(.white.opacity(0.2)).padding(.vertical, 4)
 
-                // ターゲット中心。
-                let dot = Path(ellipseIn: CGRect(
-                    x: debug.target.x - 3, y: debug.target.y - 3, width: 6, height: 6))
-                context.fill(dot, with: .color(.green))
-
-                if let touch = debug.touch {
-                    var line = Path()
-                    line.move(to: touch)
-                    line.addLine(to: debug.target)
-                    context.stroke(line, with: .color(.white.opacity(0.25)),
-                                   style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-
-                    let finger = Path(ellipseIn: CGRect(
-                        x: touch.x - 14, y: touch.y - 14, width: 28, height: 28))
-                    context.stroke(finger, with: .color(.cyan.opacity(0.85)), lineWidth: 1.5)
-                }
-            }
-
-            panel
-                .padding(14)
-        }
-    }
-
-    private var panel: some View {
-        let debug = engine.debug
-        return VStack(alignment: .leading, spacing: 6) {
-            Text("DEBUG").font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(.green)
-
-            row("found", "\(engine.foundCount)")
-            row("dist", String(format: "%.1f pt", debug.distance))
-            row("norm", String(format: "%.3f", debug.normalizedDistance))
-            row("rate", String(format: "%+.2f", debug.approachRate))
-            row("env", String(format: "%.2f", debug.envelope))
-
-            meter(label: "intensity", value: debug.intensity, tint: .green)
-            meter(label: "sharpness", value: debug.sharpness, tint: .orange)
+            row("landmark", String(format: "%+.0f°  %.1fm",
+                                   engine.debug.landmarkBearingDegrees,
+                                   engine.debug.landmarkDistance))
 
             if !engine.supportsHaptics {
-                Text("haptics: unavailable (simulator?)")
-                    .foregroundStyle(.orange)
+                Text("no haptics")
+                    .foregroundStyle(.orange.opacity(0.8))
             }
             if let message = engine.statusMessage {
                 Text(message)
-                    .foregroundStyle(.yellow.opacity(0.9))
-                    .frame(maxWidth: 240, alignment: .leading)
+                    .foregroundStyle(.orange.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .font(.system(size: 11, weight: .regular, design: .monospaced))
-        .foregroundStyle(.white.opacity(0.85))
-        .padding(10)
+        .foregroundStyle(.white.opacity(0.55))
+        .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.black.opacity(0.55))
+                .fill(.white.opacity(0.05))
         )
+        .frame(maxWidth: 260, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 16)
+        .padding(.top, 60)
     }
 
     private func row(_ label: String, _ value: String) -> some View {
         HStack(spacing: 8) {
-            Text(label).foregroundStyle(.white.opacity(0.45))
-            Spacer(minLength: 8)
+            Text(label)
+                .foregroundStyle(.white.opacity(0.3))
+                .frame(width: 66, alignment: .leading)
             Text(value)
         }
-        .frame(width: 170)
     }
 
-    private func meter(label: String, value: Double, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 8) {
-                Text(label).foregroundStyle(.white.opacity(0.45))
-                Spacer(minLength: 8)
-                Text(String(format: "%.3f", value))
-            }
+    /// 足ごとの接地状態と、次の一歩までの踏み込み量。
+    private func footRow(_ label: String, down: Bool, progress: Double) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .foregroundStyle(.white.opacity(down ? 0.75 : 0.2))
+                .frame(width: 66, alignment: .leading)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.12))
-                    Capsule().fill(tint.opacity(0.8))
-                        .frame(width: proxy.size.width * CGFloat(clamped01(value)))
+                    Capsule().fill(.white.opacity(0.08))
+                    Capsule()
+                        .fill(.white.opacity(down ? 0.45 : 0.15))
+                        .frame(width: proxy.size.width * clamped01(progress))
                 }
             }
-            .frame(height: 4)
+            .frame(height: 6)
         }
-        .frame(width: 170)
     }
 }

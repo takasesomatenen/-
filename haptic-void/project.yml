@@ -17,6 +17,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.takasesoma.HapticVoid
+        DEVELOPMENT_TEAM: JV87AUVN94
+        CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"
@@ -29,3 +31,14 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+schemes:
+  HapticVoid:
+    build:
+      targets:
+        HapticVoid: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    archive:
+      config: Release

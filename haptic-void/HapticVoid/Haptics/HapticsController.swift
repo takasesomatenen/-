@@ -19,6 +19,7 @@ final class HapticsController {
     private var engine: CHHapticEngine?
     private var continuousPlayer: CHHapticAdvancedPatternPlayer?
     private var arrivalPlayer: CHHapticPatternPlayer?
+    private var footstepPlayer: CHHapticPatternPlayer?
     private var isContinuousRunning = false
 
     /// 直近に送ったパラメータ（無駄な送信を省くため）。
@@ -79,6 +80,7 @@ final class HapticsController {
     func shutdown() {
         stopContinuous()
         arrivalPlayer = nil
+        footstepPlayer = nil
         engine?.stop(completionHandler: nil)
         engine = nil
         continuousPlayer = nil
@@ -246,6 +248,46 @@ final class HapticsController {
         } catch {
             lastMessage = "セルフテストの再生に失敗: \(error.localizedDescription)"
             return false
+        }
+    }
+
+    // MARK: - 足音
+
+    /// 一歩ぶんの触覚。踏み切った瞬間に鳴らす短いトランジェント。
+    ///
+    /// 連続触覚とは別プレイヤーなので、探索中の連続グラデーションと重ねても互いを潰さない。
+    /// 左右でわずかに質感を変えてあり、どちらの足で踏んだかが触覚だけでも分かるようにしている。
+    /// パターンは毎回組み直す（`Tuning` を触りながら実機で詰められるようにするため）。
+    func playFootstep(isLeft: Bool) {
+        guard supportsHaptics else { return }
+        prepare()
+        guard let engine = engine else { return }
+
+        var intensity = Tuning.Footstep.hapticIntensity
+        var sharpness = Tuning.Footstep.hapticSharpness
+        if !isLeft {
+            intensity *= Tuning.Footstep.rightFootIntensityScale
+            sharpness += Tuning.Footstep.rightFootSharpnessOffset
+        }
+
+        do {
+            let event = CHHapticEvent(
+                eventType: .hapticTransient,
+                parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity,
+                                           value: Float(clamped01(intensity))),
+                    CHHapticEventParameter(parameterID: .hapticSharpness,
+                                           value: Float(clamped01(sharpness)))
+                ],
+                relativeTime: 0
+            )
+            let pattern = try CHHapticPattern(events: [event], parameters: [])
+            let player = try engine.makePlayer(with: pattern)
+            // プレイヤーが解放されると再生も止まるので参照を保持しておく。
+            footstepPlayer = player
+            try player.start(atTime: CHHapticTimeImmediate)
+        } catch {
+            lastMessage = "足音の再生に失敗: \(error.localizedDescription)"
         }
     }
 

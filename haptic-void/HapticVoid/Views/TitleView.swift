@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// 最低限のタイトル画面。本体は真っ黒な探索画面なので、ここは静かに始めるための入り口。
+/// 最低限のタイトル画面。本体は真っ黒な歩行画面なので、ここは静かに始めるための入り口。
 struct TitleView: View {
-    @EnvironmentObject private var engine: ExplorationEngine
+    @EnvironmentObject private var engine: WalkEngine
+
     /// 触覚テストの結果表示（数秒で消える）。
     @State private var hapticTestNote: String?
 
@@ -20,7 +21,7 @@ struct TitleView: View {
                         engine.toggleDebug()
                     }
 
-                Text("見えない場所を、指で探す")
+                Text("見えない場所を、歩いて探す")
                     .font(.system(size: 14, weight: .light, design: .rounded))
                     .tracking(2)
                     .foregroundStyle(.white.opacity(0.45))
@@ -29,10 +30,11 @@ struct TitleView: View {
             Spacer()
 
             VStack(alignment: .leading, spacing: 10) {
-                instruction("画面のどこかに、見えない目的地がひとつあります。")
-                instruction("指を置いて、ゆっくり滑らせてください。")
-                instruction("近いほど振動は強く、近づいている間はまろやかに。")
-                instruction("遠ざかると、ざらついて不規則になります。")
+                instruction("両手の親指が、あなたの両足です。")
+                instruction("交互に下へ払うと、一歩ずつ進みます。")
+                instruction("両親指を結ぶ線が、体の向き。傾ければその分だけ曲がります。")
+                instruction("遠くで鳴っている音が、方角の手がかりです。")
+                instruction("まっすぐ歩いているつもりでも、少しずつ逸れます。")
                 instruction("できれば目を閉じて。失敗はありません。")
             }
             .frame(maxWidth: 320, alignment: .leading)
@@ -42,7 +44,7 @@ struct TitleView: View {
             Button {
                 engine.beginSession()
             } label: {
-                Text("はじめる")
+                Text("歩きだす")
                     .font(.system(size: 17, weight: .regular, design: .rounded))
                     .tracking(4)
                     .foregroundStyle(.white.opacity(0.85))
@@ -84,6 +86,7 @@ struct TitleView: View {
                     Text(hapticTestNote)
                         .foregroundStyle(.white.opacity(0.5))
                 }
+                Text("ヘッドホンを着けてください（方角は音の定位で伝えています）")
                 Text("2本指ダブルタップでタイトルへ / 3本指タップでデバッグ表示")
                 if !engine.supportsHaptics {
                     Text("⚠︎ この端末では触覚が再生されません（音のみで動作します）")

@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct HapticVoidApp: App {
     @Environment(\.scenePhase) private var scenePhase
-    @StateObject private var engine = ExplorationEngine()
+    @StateObject private var engine = WalkEngine()
 
     var body: some Scene {
         WindowGroup {

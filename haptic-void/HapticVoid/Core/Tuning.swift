@@ -7,38 +7,74 @@ import Foundation
 /// すべて `static var` なので、デバッグUIやプレイ中のコードから書き換えても即座に反映される。
 enum Tuning {
 
-    // MARK: - 空間 / 距離
+    // MARK: - 歩行
 
-    enum Space {
-        /// 到達判定の半径（画面短辺に対する比率）。
-        /// 大きくすると「当たり」やすくなり、小さくすると精密な探索を要求する。
-        static var arrivalRadiusRatio: Double = 0.055
+    /// 両手の親指を交互に下へ払って前進し、両親指を結ぶ線（＝肩のライン）の傾きで向きが変わる。
+    enum Walk {
+        /// 一歩ぶんの親指ストローク量（画面高さに対する比率）。
+        /// 小さくすると小刻みな足踏みに、大きくすると大股でゆったりした歩みになる。
+        static var strideStrokeRatio: Double = 0.11
 
-        /// 触覚・音が反応する最大距離（画面対角線に対する比率）。
-        /// この距離以上離れると強度は最小値に張り付く。
-        static var senseRangeRatio: Double = 0.80
+        /// 一歩で前進する距離（メートル）。
+        static var strideAdvance: Double = 0.7
 
-        /// ターゲットを置くときの画面端マージン（短辺比率）。
-        /// 端すぎると指が届きにくいので少し内側に寄せる。
-        static var spawnMarginRatio: Double = 0.14
+        /// 同じ足を続けて使ったときの前進ゲイン。
+        /// 1.0 にすると片手だけでスクロールしても普通に進んでしまう（＝歩行感が消える）。
+        /// 小さくするほど「左右交互でないと進まない」が強くなる。
+        static var sameFootGain: Double = 0.22
 
-        /// 次のターゲットは「前回のターゲット」「現在の指の位置」からこれ以上離す（短辺比率）。
-        static var respawnSeparationRatio: Double = 0.40
+        /// 肩のライン（両親指を結ぶ線）の回転を、進行方向の回転へ変換するゲイン。
+        /// 1.0 = 1:1（9時→10時の30度で、そのまま30度回頭する）。
+        static var steeringGain: Double = 1.0
+
+        /// 回頭の向きを反転させる。実機で「思った向きと逆」ならここを false↔true。
+        static var invertSteering: Bool = false
+
+        /// 肩のラインが1フレームでこれ以上動いたら、指の置き直し（再グリップ）とみなして無視する（度）。
+        /// 親指を浮かせて持ち替えたときに、その分だけ回頭してしまうのを防ぐ。
+        static var regripAngleThresholdDegrees: Double = 25.0
+
+        /// 目を閉じて歩くと人間はまっすぐ歩けない、という現実をそのまま入れる。
+        /// 一歩あたりに加わる蛇行の大きさ（度）。0 にすると完全にまっすぐ歩ける。
+        static var blindDriftDegreesPerStep: Double = 2.2
+
+        /// 蛇行のランダムウォークの持続性（0...1）。
+        /// 大きいほど「同じ方向へ曲がり続けて、じわじわ円を描く」挙動になる。
+        /// 小さいと毎歩バラバラに揺れるだけで、方向感を失う感じが出ない。
+        static var blindDriftPersistence: Double = 0.88
+
+        /// 前進速度と向きの平滑化時定数（秒）。小さいほど機敏、大きいほどぬるっとする。
+        static var advanceSmoothing: Double = 0.06
+        static var headingSmoothing: Double = 0.05
     }
 
-    // MARK: - 触覚
+    // MARK: - 足音（触覚＋クリック音）
+
+    enum Footstep {
+        /// 一歩の触覚の強さと鋭さ。
+        static var hapticIntensity: Double = 0.85
+        static var hapticSharpness: Double = 0.62
+
+        /// 左右で質感を少しだけ変えると、どちらの足かが触覚だけで分かる。
+        /// 右足に対する乗算オフセット（1.0 で左右同じ）。
+        static var rightFootIntensityScale: Double = 0.92
+        static var rightFootSharpnessOffset: Double = -0.10
+
+        /// クリック音の中心周波数（Hz）と減衰時定数（秒）。
+        /// 低く・短くするほど「コツッ」、高く・長くするほど「カツン」に寄る。
+        static var clickFrequency: Double = 220.0
+        static var clickDecay: Double = 0.045
+        /// 音の芯に混ぜるノイズの量（0...1）。硬さ・素材感を決める。
+        static var clickNoiseMix: Double = 0.55
+        static var clickLevel: Double = 0.5
+
+        /// 足音の左右への振り分け（0 = 中央、1 = 完全に左右）。
+        static var clickPan: Double = 0.35
+    }
+
+    // MARK: - 触覚エンジン
 
     enum Haptics {
-        /// 連続触覚の強度レンジ。
-        static var minIntensity: Double = 0.0
-        static var maxIntensity: Double = 1.0
-
-        /// 近さ(0...1)から強度へ変換するときの指数。
-        /// - 1.0 : 線形
-        /// - >1  : 近くに来るまで弱いまま（探索が難しく・達成感が強い）
-        /// - <1  : 遠くからでも感じ取れる（やさしい）
-        static var intensityGamma: Double = 2.0
-
         /// パターンに埋め込む基準シャープネス。
         /// Core Haptics の `hapticSharpnessControl` は「相対オフセット」なので、
         /// ここを中央値(0.5)にしておくと上下どちらにも振れる。
@@ -46,31 +82,6 @@ enum Tuning {
 
         /// 方向が分からないとき（静止時）のシャープネス。
         static var neutralSharpness: Double = 0.5
-        /// 近づいている時のシャープネス（低い＝滑らか・まろやか）。
-        static var approachingSharpness: Double = 0.05
-        /// 遠ざかっている時のシャープネス（高い＝ざらつく・警告的）。
-        static var recedingSharpness: Double = 0.95
-
-        /// 接近速度（正規化距離/秒）がこの値に達したとき、方向表現が振り切れる。
-        /// 小さくすると少し動かしただけで方向が出る（敏感）。
-        static var approachRateFullScale: Double = 1.2
-
-        /// 各種平滑化の時定数（秒）。小さいほど機敏、大きいほどぬるっとする。
-        static var approachRateSmoothing: Double = 0.10
-        static var intensitySmoothing: Double = 0.05
-        static var sharpnessSmoothing: Double = 0.12
-
-        /// 指を離した／到達した瞬間のフェードアウト時定数（秒）。
-        static var releaseFade: Double = 0.20
-        /// 指を置いた瞬間の立ち上がり時定数（秒）。
-        static var attackTime: Double = 0.04
-
-        /// 遠いときの「ゆらぎ（不規則さ）」の最大量。0にすると完全に滑らかなグラデーションになる。
-        static var farJitterAmount: Double = 0.35
-        /// ゆらぎがシャープネス側に効く割合。
-        static var farJitterSharpnessScale: Double = 0.5
-        /// ゆらぎのランダムウォークの時定数（秒）。小さいほどガサガサする。
-        static var farJitterSmoothing: Double = 0.07
 
         /// このしきい値以下の変化ならパラメータ送信を省略する（無駄な送信を減らす）。
         static var parameterEpsilon: Double = 0.004
@@ -82,42 +93,29 @@ enum Tuning {
         /// 音を鳴らすかどうか。触覚だけの体験を試したいときは false に。
         static var enabled: Bool = true
 
-        /// 最遠（proximity = 0）と最近（proximity = 1）の周波数。
-        /// 対数補間するので、音楽的に自然なピッチ変化になる。
-        static var lowFrequency: Double = 138.59   // C#3
-        static var highFrequency: Double = 415.30  // G#4
-        static var frequencyGamma: Double = 1.0
-
-        /// 音量レンジ（0...1）。
-        static var minAmplitude: Double = 0.0
-        static var maxAmplitude: Double = 0.22
-        static var amplitudeGamma: Double = 1.6
-
-        /// レンダースレッド側でのパラメータ平滑化時定数（秒）。ジッパーノイズ防止。
-        static var parameterSmoothing: Double = 0.08
-
-        /// パッドらしさを出すための、ゆっくりした音量ゆらぎ。
-        static var padLFOFrequency: Double = 0.11
-        static var padLFODepth: Double = 0.18
-
-        /// デチューン量（うなりの速さ）と、サブオシレータ（1オクターブ下）の混合量。
-        static var detuneRatio: Double = 1.006
-        static var subLevel: Double = 0.30
-
-        /// 到達時のチャイム。
-        static var chimeLevel: Double = 0.28
-        static var chimeDecay: Double = 0.9        // 減衰時定数（秒）
-        static var chimeIntervalRatio: Double = 1.5 // 到達時のピッチ（現在の音に対する比。1.5 = 完全5度上）
-
         /// 出力全体のマスターボリューム。
         static var masterVolume: Float = 0.9
-    }
 
-    // MARK: - ラウンド進行
-
-    enum Round {
-        /// 到達してから次のターゲットが出るまでの余韻（秒）。
-        static var arrivalHoldSeconds: Double = 1.6
+        /// 遠くで鳴り続ける方角の基準音（landmark）。
+        /// これが無いと、自分がどれだけ回ったのかが音から読めない。
+        enum Landmark {
+            static var enabled: Bool = true
+            /// 基準音の位置（メートル）。x = 東、z = 北。
+            static var position: (x: Double, z: Double) = (0, 18)
+            /// 基準音の高さ（メートル）。少し上に置くと頭外に定位しやすい。
+            static var height: Double = 1.2
+            /// 音量（0...1）。
+            static var level: Float = 0.55
+            /// 基準音のピッチ（Hz）と、うなりを作るデチューン比。
+            static var frequency: Double = 92.5
+            static var detuneRatio: Double = 1.004
+            /// ゆっくりした音量ゆらぎ。
+            static var lfoFrequency: Double = 0.09
+            static var lfoDepth: Double = 0.22
+            /// この距離（メートル）から先は減衰しきる。
+            static var referenceDistance: Double = 3.0
+            static var maximumDistance: Double = 60.0
+        }
     }
 
     // MARK: - デバッグ
