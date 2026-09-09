@@ -32,8 +32,9 @@ struct TitleView: View {
             VStack(alignment: .leading, spacing: 10) {
                 instruction("両手の親指が、あなたの両足です。")
                 instruction("交互に下へ払うと、一歩ずつ進みます。")
-                instruction("片方の親指を止めると、カチッと鳴って舵になります。")
-                instruction("そのまま反対の親指を動かすと、動かした角度だけ向きが変わります。")
+                instruction("片方の親指を止めると、カチッと鳴って舵に変わります。")
+                instruction("そのまま親指を動かすと、動かした角度だけ向きが変わります。")
+                instruction("指を離せば、また歩けます。")
                 instruction("遠くで鳴っている音が、方角の手がかりです。")
                 instruction("まっすぐ歩いているつもりでも、少しずつ逸れます。")
                 instruction("できれば目を閉じて。失敗はありません。")
@@ -88,7 +89,7 @@ struct TitleView: View {
                         .foregroundStyle(.white.opacity(0.5))
                 }
                 Text("ヘッドホンを着けてください（方角は音の定位で伝えています）")
-                Text("2本指ダブルタップでタイトルへ / 3本指タップでデバッグ表示")
+                Text("4本指タップでタイトルへ / 3本指タップでデバッグ表示")
                 if !engine.supportsHaptics {
                     Text("⚠︎ この端末では触覚が再生されません（音のみで動作します）")
                         .foregroundStyle(.orange.opacity(0.7))

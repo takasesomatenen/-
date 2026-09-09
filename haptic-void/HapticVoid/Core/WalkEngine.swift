@@ -9,9 +9,10 @@ import SwiftUI
 /// 入力モデル:
 /// - **前進**: 左右の親指を交互に下へ払う。下方向の動きだけが推進力になる（上へ戻す動作は足を運び直す動作）。
 ///   同じ足を続けて使うとゲインが落ちるので、左右交互でないと前へ進まない。
-/// - **回頭**: 片方の親指を**止めたまま**にすると回頭モードに入り、もう片方が舵になる。
+/// - **回頭**: 片方の親指を**止めたまま**にすると回頭モードに入り、そこからは両親指とも舵になる。
 ///   両親指を結ぶ線＝肩のラインが回った角度ぶん、進行方向も回る。
 ///   モードの間は前進しないので、回すために親指を下げても歩き出さない。
+///   指を離すと歩行に戻る。
 ///   歩いている間は肩のラインが傾いても向きは一切変わらないので、ただ歩けばまっすぐ進む。
 /// - **蛇行**: 目を閉じて歩くと人間はまっすぐ歩けない。これを一歩ごとのランダムウォークとして入れてある。
 @MainActor
@@ -113,8 +114,6 @@ final class WalkEngine: ObservableObject {
     private var rightStillTime: Double = 0
     /// 回頭モード。この間は前進せず、肩のラインの回転だけが向きに効く。
     private var isPivoting = false
-    /// 回頭モードで軸にしている足。
-    private var pivotAnchor: Foot = .right
 
     /// いまいる場所の広さ（メートル）。残響に連動する。
     private var smoothedSpaceRadius: Double = Tuning.Cave.outsideRadius
@@ -348,23 +347,18 @@ final class WalkEngine: ObservableObject {
         leftStillTime = left.isDown && speedLeft < Tuning.Walk.pivotStillSpeed ? leftStillTime + dt : 0
         rightStillTime = right.isDown && speedRight < Tuning.Walk.pivotStillSpeed ? rightStillTime + dt : 0
 
+        // 指を離したら歩行に戻る。
+        // 速度で抜けるようにすると「片方を下、片方を上」で回したときに
+        // 途中でモードが切れて、効いたり効かなかったりする。
         guard left.isDown, right.isDown else {
             if isPivoting { endPivot() }
             return
         }
+        guard !isPivoting else { return }
 
-        if isPivoting {
-            // 軸にしていた指がはっきり動き出したら歩行へ戻る。
-            let anchorSpeed = pivotAnchor == .left ? speedLeft : speedRight
-            if anchorSpeed > Tuning.Walk.pivotReleaseSpeed { endPivot() }
-            return
-        }
-
-        let hold = Tuning.Walk.pivotHoldTime
-        if leftStillTime >= hold && leftStillTime >= rightStillTime {
-            beginPivot(anchor: .left)
-        } else if rightStillTime >= hold {
-            beginPivot(anchor: .right)
+        // どちらかを止め続けたら舵に持ち替える。以後は両親指とも舵になる。
+        if max(leftStillTime, rightStillTime) >= Tuning.Walk.pivotHoldTime {
+            beginPivot()
         }
     }
 
@@ -373,9 +367,8 @@ final class WalkEngine: ObservableObject {
         return hypot(Double(state.frameDelta.dx), Double(state.frameDelta.dy)) / dt
     }
 
-    private func beginPivot(anchor: Foot) {
+    private func beginPivot() {
         isPivoting = true
-        pivotAnchor = anchor
         // 回り始めた瞬間の正面に音源を置く。以後この点は動かないので、
         // 体が回るぶんだけ音が横へ流れる＝回転そのものが聴こえる。
         let x = positionX + sin(heading) * Tuning.Rotation.distance

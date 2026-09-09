@@ -10,11 +10,16 @@ struct MultiFingerTapCatcher: UIViewRepresentable {
 
     /// 3本指シングルタップ（デバッグ表示の切り替え）
     var onThreeFingerTap: () -> Void
-    /// 2本指ダブルタップ（タイトルへ戻る）
-    var onTwoFingerDoubleTap: () -> Void
+    /// 4本指タップ（タイトルへ戻る）
+    ///
+    /// - Note: かつては2本指ダブルタップだったが、両手の親指で歩く操作と衝突する。
+    ///   親指を置き直すたびに2本指タップが成立してしまい、
+    ///   回頭のために持ち替えるだけでタイトルへ戻されていた。
+    ///   遊んでいる間に絶対に起きない本数まで離す必要がある。
+    var onFourFingerTap: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onThreeFingerTap: onThreeFingerTap, onTwoFingerDoubleTap: onTwoFingerDoubleTap)
+        Coordinator(onThreeFingerTap: onThreeFingerTap, onFourFingerTap: onFourFingerTap)
     }
 
     func makeUIView(context: Context) -> AttachingView {
@@ -27,7 +32,7 @@ struct MultiFingerTapCatcher: UIViewRepresentable {
 
     func updateUIView(_ uiView: AttachingView, context: Context) {
         context.coordinator.onThreeFingerTap = onThreeFingerTap
-        context.coordinator.onTwoFingerDoubleTap = onTwoFingerDoubleTap
+        context.coordinator.onFourFingerTap = onFourFingerTap
     }
 
     static func dismantleUIView(_ uiView: AttachingView, coordinator: Coordinator) {
@@ -38,14 +43,14 @@ struct MultiFingerTapCatcher: UIViewRepresentable {
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var onThreeFingerTap: () -> Void
-        var onTwoFingerDoubleTap: () -> Void
+        var onFourFingerTap: () -> Void
 
         private weak var attachedWindow: UIWindow?
         private var recognizers: [UIGestureRecognizer] = []
 
-        init(onThreeFingerTap: @escaping () -> Void, onTwoFingerDoubleTap: @escaping () -> Void) {
+        init(onThreeFingerTap: @escaping () -> Void, onFourFingerTap: @escaping () -> Void) {
             self.onThreeFingerTap = onThreeFingerTap
-            self.onTwoFingerDoubleTap = onTwoFingerDoubleTap
+            self.onFourFingerTap = onFourFingerTap
         }
 
         func attach(to window: UIWindow) {
@@ -56,11 +61,11 @@ struct MultiFingerTapCatcher: UIViewRepresentable {
             threeFinger.numberOfTouchesRequired = 3
             threeFinger.numberOfTapsRequired = 1
 
-            let twoFinger = UITapGestureRecognizer(target: self, action: #selector(handleTwoFinger))
-            twoFinger.numberOfTouchesRequired = 2
-            twoFinger.numberOfTapsRequired = 2
+            let fourFinger = UITapGestureRecognizer(target: self, action: #selector(handleFourFinger))
+            fourFinger.numberOfTouchesRequired = 4
+            fourFinger.numberOfTapsRequired = 1
 
-            for recognizer in [threeFinger, twoFinger] {
+            for recognizer in [threeFinger, fourFinger] {
                 // 下の SwiftUI ジェスチャを殺さないための設定。
                 recognizer.cancelsTouchesInView = false
                 recognizer.delaysTouchesBegan = false
@@ -69,7 +74,7 @@ struct MultiFingerTapCatcher: UIViewRepresentable {
                 window.addGestureRecognizer(recognizer)
             }
 
-            recognizers = [threeFinger, twoFinger]
+            recognizers = [threeFinger, fourFinger]
             attachedWindow = window
         }
 
@@ -84,7 +89,7 @@ struct MultiFingerTapCatcher: UIViewRepresentable {
         }
 
         @objc private func handleThreeFinger() { onThreeFingerTap() }
-        @objc private func handleTwoFinger() { onTwoFingerDoubleTap() }
+        @objc private func handleFourFinger() { onFourFingerTap() }
 
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,

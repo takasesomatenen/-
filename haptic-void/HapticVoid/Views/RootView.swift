@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// タイトルと歩行画面を切り替えるだけの器。
-/// 隠しジェスチャ（3本指タップ／2本指ダブルタップ）はここで常時受け付ける。
+/// 隠しジェスチャ（3本指タップ／4本指タップ）はここで常時受け付ける。
 struct RootView: View {
     @EnvironmentObject private var engine: WalkEngine
 
@@ -23,7 +23,7 @@ struct RootView: View {
         .background(
             MultiFingerTapCatcher(
                 onThreeFingerTap: { engine.toggleDebug() },
-                onTwoFingerDoubleTap: { engine.returnToTitle() }
+                onFourFingerTap: { engine.returnToTitle() }
             )
             .frame(width: 0, height: 0)
         )
