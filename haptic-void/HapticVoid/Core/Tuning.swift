@@ -9,7 +9,9 @@ enum Tuning {
 
     // MARK: - 歩行
 
-    /// 両手の親指を交互に下へ払って前進し、両親指を結ぶ線（＝肩のライン）の傾きで向きが変わる。
+    /// 両手の親指を交互に下へ払って前進する。
+    /// 曲がるのは「片方を軸にして、もう片方を動かしたとき」だけ。
+    /// ただ交互に払っているだけでは曲がらない（歩幅の左右差で勝手に逸れないようにするため）。
     enum Walk {
         /// 一歩ぶんの親指ストローク量（画面高さに対する比率）。
         /// 小さくすると小刻みな足踏みに、大きくすると大股でゆったりした歩みになる。
@@ -20,7 +22,6 @@ enum Tuning {
 
         /// 同じ足を続けて使ったときの前進ゲイン。
         /// 1.0 にすると片手だけでスクロールしても普通に進んでしまう（＝歩行感が消える）。
-        /// 小さくするほど「左右交互でないと進まない」が強くなる。
         static var sameFootGain: Double = 0.22
 
         /// 肩のライン（両親指を結ぶ線）の回転を、進行方向の回転へ変換するゲイン。
@@ -30,8 +31,21 @@ enum Tuning {
         /// 回頭の向きを反転させる。実機で「思った向きと逆」ならここを false↔true。
         static var invertSteering: Bool = false
 
+        /// 踏み込みが止まってからこの時間が経つと、回頭できるようになる（秒）。
+        ///
+        /// 歩いている間は肩のラインが傾いても**一切**向きを変えない。
+        /// 「片方が止まっているか」で判定すると、歩行にも片方が止まる瞬間があるので誤発火する。
+        /// また下方向のストロークだけを除外するのも駄目で、
+        /// 足を戻す上方向のストロークが打ち消されずに残り、一歩ごとに曲がってしまう。
+        /// 「歩くのをやめてから回る」という素直な形にするのがいちばん確実だった。
+        ///
+        /// 歩行の一往復（踏み込み→足を戻す）より長くし、待たされすぎない程度に短くする。
+        static var pivotIdleTime: Double = 0.45
+
+        /// 指の微細な揺れで回ってしまわないための不感帯（度/フレーム）。
+        static var steeringDeadzoneDegrees: Double = 0.12
+
         /// 肩のラインが1フレームでこれ以上動いたら、指の置き直し（再グリップ）とみなして無視する（度）。
-        /// 親指を浮かせて持ち替えたときに、その分だけ回頭してしまうのを防ぐ。
         static var regripAngleThresholdDegrees: Double = 25.0
 
         /// 目を閉じて歩くと人間はまっすぐ歩けない、という現実をそのまま入れる。
@@ -40,10 +54,9 @@ enum Tuning {
 
         /// 蛇行のランダムウォークの持続性（0...1）。
         /// 大きいほど「同じ方向へ曲がり続けて、じわじわ円を描く」挙動になる。
-        /// 小さいと毎歩バラバラに揺れるだけで、方向感を失う感じが出ない。
         static var blindDriftPersistence: Double = 0.88
 
-        /// 前進速度と向きの平滑化時定数（秒）。小さいほど機敏、大きいほどぬるっとする。
+        /// 速度表示と向きの平滑化時定数（秒）。
         static var advanceSmoothing: Double = 0.06
         static var headingSmoothing: Double = 0.05
     }
@@ -68,8 +81,38 @@ enum Tuning {
         static var pan: Float = 0.3
 
         /// 一歩ごとの音量のばらつき（0 で完全に均一）。
-        /// 同じ波形の連打は機械的に聴こえるので、わずかに散らす。
         static var levelVariation: Double = 0.14
+    }
+
+    // MARK: - 回頭のフィードバック
+
+    /// 回っている間だけ鳴る音。
+    ///
+    /// 回転を「音が自分の周りを回る」形で伝えるための仕掛け。
+    /// 回り始めた瞬間の**前方**にワールド座標で固定した音源を置き、
+    /// そこでカチッと鳴らしてから持続音を出す。
+    /// 音源は空間に留まったままなので、体が回るぶんだけ音が横へ流れていく。
+    enum Rotation {
+        static var enabled: Bool = true
+
+        /// 音源を置く距離（メートル）と高さ。近すぎると回転が速すぎて追えない。
+        static var distance: Double = 6.0
+        static var height: Double = 1.5
+
+        /// 回り始めたと判定する角速度（度/秒）と、回り続けているとみなす角速度。
+        /// 開始のほうを高くしておくと、歩行中の微細な揺れで誤発火しない。
+        static var onsetRateDegreesPerSecond: Double = 32
+        static var sustainRateDegreesPerSecond: Double = 10
+
+        /// 角速度がしきい値を下回ってから音を消すまでの猶予（秒）。
+        static var releaseDelay: Double = 0.35
+
+        /// 持続音の立ち上がり／消えぎわの時定数（秒）。
+        static var fadeInTime: Double = 0.12
+        static var fadeOutTime: Double = 0.5
+
+        static var startLevel: Float = 0.9
+        static var bedLevel: Float = 0.55
     }
 
     // MARK: - 触覚エンジン
@@ -87,6 +130,31 @@ enum Tuning {
         static var parameterEpsilon: Double = 0.004
     }
 
+    // MARK: - 空間（洞窟）
+
+    /// 広い部屋と狭い通路がつながった洞窟状の空間。
+    /// いまいる場所の広さが、そのまま残響の大きさになる。
+    enum Cave {
+        static var enabled: Bool = true
+
+        /// 部屋の数と、半径の範囲（メートル）。
+        static var chamberCount: Int = 12
+        static var chamberRadiusRange: ClosedRange<Double> = 3.5...14.0
+
+        /// 部屋どうしの距離の範囲（メートル）。
+        static var chamberSpacingRange: ClosedRange<Double> = 12.0...26.0
+
+        /// 部屋をつなぐ通路の半径の範囲（メートル）。
+        static var corridorRadiusRange: ClosedRange<Double> = 1.2...2.8
+
+        /// 洞窟の外（岩の中）に出てしまったときに使う広さ。
+        static var outsideRadius: Double = 1.0
+
+        /// 広さの変化の平滑化時定数（秒）。
+        /// 短いと部屋の境目で残響がガクッと変わる。長いと変化に気づけない。
+        static var spaceSmoothing: Double = 0.7
+    }
+
     // MARK: - 音
 
     enum Audio {
@@ -100,10 +168,10 @@ enum Tuning {
         ///
         /// 1つだけだと「動いた」しか分からない。複数あって初めて、
         /// 星座が回るように自分が何度回ったのかが読める。
-        struct Beacon {
-            /// 位置（メートル）。x = 東、z = 北。
-            var x: Double
-            var z: Double
+        struct Beacon: Equatable {
+            /// 位置（メートル）。x = 東、z = 北。洞窟を使うときは部屋の中へ置き直される。
+            var x: Double = 0
+            var z: Double = 0
             /// 高さ（メートル）。耳の高さから少しずらすと頭外に定位しやすい。
             var height: Double = 1.4
             /// 基音（Hz）。
@@ -113,11 +181,10 @@ enum Tuning {
             ///   ILD とスペクトル手がかりが効く帯域にエネルギーを置くこと。
             var frequency: Double
             /// 脈打つ周期（秒）。**アタックのある音でないと定位は立たない。**
-            /// 音源ごとに変えると、複数あっても聴き分けられる。
             var pulseInterval: Double
             /// 脈の減衰時定数（秒）。
             var pulseDecay: Double = 0.55
-            /// 脈と脈の間を埋める持続音の量（0...1）。手がかりが途切れないように少しだけ入れる。
+            /// 脈と脈の間を埋める持続音の量（0...1）。
             var bedLevel: Double = 0.18
             var level: Float = 0.8
         }
@@ -125,22 +192,34 @@ enum Tuning {
         enum Space {
             static var enabled: Bool = true
 
-            /// 方角の基準音。バラけた方向・高さ・音色にしておくと回頭が読みやすい。
+            /// 方角の基準音の音色。位置は洞窟の部屋の中から選ばれる。
             static var beacons: [Beacon] = [
-                Beacon(x:   0, z:  12, height: 1.5, frequency: 294.0, pulseInterval: 1.7),
-                Beacon(x:  10, z:  -5, height: 1.1, frequency: 392.0, pulseInterval: 2.3),
-                Beacon(x:  -9, z:   2, height: 1.8, frequency: 233.0, pulseInterval: 2.9)
+                Beacon(frequency: 294.0, pulseInterval: 1.7),
+                Beacon(frequency: 392.0, pulseInterval: 2.3),
+                Beacon(frequency: 233.0, pulseInterval: 2.9)
             ]
 
             /// この距離（メートル）から先は減衰しきる。
             static var referenceDistance: Double = 4.0
-            static var maximumDistance: Double = 60.0
+            static var maximumDistance: Double = 80.0
 
-            /// わずかな残響。頭の中ではなく「外」で鳴っている感じ（頭外定位）が出て、
-            /// 方向が格段に読みやすくなる。入れすぎると定位が滲むので控えめに。
+            /// 残響。頭の中ではなく「外」で鳴っている感じ（頭外定位）が出て、
+            /// 方向が格段に読みやすくなる。
+            ///
+            /// 量は洞窟の広さに連動する。狭い通路では締まり、広間では大きく響く。
             static var reverbEnabled: Bool = true
-            static var reverbLevelDB: Float = -10.0
-            static var reverbBlend: Float = 0.22
+            /// 狭いとき／広いときの残響レベル（dB）と混ぜ具合。
+            static var reverbLevelTightDB: Float = -24
+            static var reverbLevelOpenDB: Float = 2
+            static var reverbBlendTight: Float = 0.06
+            static var reverbBlendOpen: Float = 0.7
+
+            /// 広さに応じて残響のプリセット自体（＝残響の長さ）も切り替えるか。
+            /// レベルだけを動かすと「量」は変わっても「空間の大きさ」までは変わらないので、
+            /// 洞窟らしさを出すには効くが、切り替えの瞬間にノイズが乗るなら false に。
+            static var reverbPresetSwitching: Bool = true
+            /// プリセットが行ったり来たりしないための余裕（メートル）。
+            static var reverbPresetHysteresis: Double = 0.9
         }
     }
 

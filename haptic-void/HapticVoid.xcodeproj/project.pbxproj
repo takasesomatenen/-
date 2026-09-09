@@ -10,6 +10,7 @@
 		11AD344ED3BC7F476056E20F /* DisplayLinkDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5083A754EAA805EFC6AE1C2 /* DisplayLinkDriver.swift */; };
 		2037BFB37029012A0B2D4F54 /* MathHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D7E71044DAEABE5EB2E3434 /* MathHelpers.swift */; };
 		448E41B3D88554C6B50E1234 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AB2DDBE4C6A12163A8C6002 /* RootView.swift */; };
+		52C0091D1F1E9BF55EFF0DB8 /* RotateBed.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3E507C70AC58358D96B0D462 /* RotateBed.wav */; };
 		5C415EE8FE38B6567515B066 /* Tuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B8676FDBDB829246EE1C34 /* Tuning.swift */; };
 		5D80807FAA19892EF4487F23 /* MultiFingerTapCatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24849905A5F8E2F53ACDE943 /* MultiFingerTapCatcher.swift */; };
 		60A3941C1B74E2D91DA466C9 /* Footstep_L.wav in Resources */ = {isa = PBXBuildFile; fileRef = E6C044000E9E23A7459C6C7D /* Footstep_L.wav */; };
@@ -17,6 +18,8 @@
 		872B9991D5E1D40F6CC83DA0 /* DebugOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756E75F8A62E41693625E480 /* DebugOverlay.swift */; };
 		8C2FE91FBF3017B8448CDBE3 /* DualThumbTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F5DC422DE3DC3E144E138F /* DualThumbTracker.swift */; };
 		94E0285B0FAFC7830B1B82C1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 11BB6AE66870FFD5371D7796 /* Assets.xcassets */; };
+		998E1198415FA38B797887C8 /* CaveSpace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E1C88DED04F631BB34D0022 /* CaveSpace.swift */; };
+		A38F994F2B71EBE477240C3E /* RotateStart.wav in Resources */ = {isa = PBXBuildFile; fileRef = D13E83BC9776E9790D78E69B /* RotateStart.wav */; };
 		B3011CE7F10AA933CD8D5120 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E84EA61B037833EE6B2EFD /* AudioController.swift */; };
 		BAA5E9A72FF038476B629D8C /* Footstep_R.wav in Resources */ = {isa = PBXBuildFile; fileRef = FC6331DF37439A92F225E030 /* Footstep_R.wav */; };
 		CC280A42BCC9112472741A98 /* HapticVoidApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 160067D4F119991EF18097D1 /* HapticVoidApp.swift */; };
@@ -29,16 +32,19 @@
 		0A9FD3D9BF8213D4C6ADAF50 /* HapticsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsController.swift; sourceTree = "<group>"; };
 		11BB6AE66870FFD5371D7796 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		160067D4F119991EF18097D1 /* HapticVoidApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticVoidApp.swift; sourceTree = "<group>"; };
+		1E1C88DED04F631BB34D0022 /* CaveSpace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaveSpace.swift; sourceTree = "<group>"; };
 		24849905A5F8E2F53ACDE943 /* MultiFingerTapCatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiFingerTapCatcher.swift; sourceTree = "<group>"; };
 		26E84EA61B037833EE6B2EFD /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
 		2F6AA64575F0DEDE90193BB4 /* WalkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalkView.swift; sourceTree = "<group>"; };
 		3A1D09CA0F011993335CA3E4 /* TitleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitleView.swift; sourceTree = "<group>"; };
+		3E507C70AC58358D96B0D462 /* RotateBed.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RotateBed.wav; sourceTree = "<group>"; };
 		4D7E71044DAEABE5EB2E3434 /* MathHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathHelpers.swift; sourceTree = "<group>"; };
 		756E75F8A62E41693625E480 /* DebugOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugOverlay.swift; sourceTree = "<group>"; };
 		7EE2E0A20291CB341ADCD001 /* WalkEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalkEngine.swift; sourceTree = "<group>"; };
 		8AB2DDBE4C6A12163A8C6002 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B5083A754EAA805EFC6AE1C2 /* DisplayLinkDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayLinkDriver.swift; sourceTree = "<group>"; };
 		B9B8676FDBDB829246EE1C34 /* Tuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tuning.swift; sourceTree = "<group>"; };
+		D13E83BC9776E9790D78E69B /* RotateStart.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RotateStart.wav; sourceTree = "<group>"; };
 		D89306BCA9EC406921DF3D6A /* HapticVoid.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HapticVoid.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E6C044000E9E23A7459C6C7D /* Footstep_L.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Footstep_L.wav; sourceTree = "<group>"; };
 		F4F5DC422DE3DC3E144E138F /* DualThumbTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualThumbTracker.swift; sourceTree = "<group>"; };
@@ -59,6 +65,8 @@
 			children = (
 				E6C044000E9E23A7459C6C7D /* Footstep_L.wav */,
 				FC6331DF37439A92F225E030 /* Footstep_R.wav */,
+				3E507C70AC58358D96B0D462 /* RotateBed.wav */,
+				D13E83BC9776E9790D78E69B /* RotateStart.wav */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -87,6 +95,7 @@
 		98479A0A7E0FB018AA92772F /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				1E1C88DED04F631BB34D0022 /* CaveSpace.swift */,
 				B5083A754EAA805EFC6AE1C2 /* DisplayLinkDriver.swift */,
 				4D7E71044DAEABE5EB2E3434 /* MathHelpers.swift */,
 				B9B8676FDBDB829246EE1C34 /* Tuning.swift */,
@@ -188,6 +197,8 @@
 				94E0285B0FAFC7830B1B82C1 /* Assets.xcassets in Resources */,
 				60A3941C1B74E2D91DA466C9 /* Footstep_L.wav in Resources */,
 				BAA5E9A72FF038476B629D8C /* Footstep_R.wav in Resources */,
+				52C0091D1F1E9BF55EFF0DB8 /* RotateBed.wav in Resources */,
+				A38F994F2B71EBE477240C3E /* RotateStart.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -199,6 +210,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B3011CE7F10AA933CD8D5120 /* AudioController.swift in Sources */,
+				998E1198415FA38B797887C8 /* CaveSpace.swift in Sources */,
 				872B9991D5E1D40F6CC83DA0 /* DebugOverlay.swift in Sources */,
 				11AD344ED3BC7F476056E20F /* DisplayLinkDriver.swift in Sources */,
 				8C2FE91FBF3017B8448CDBE3 /* DualThumbTracker.swift in Sources */,

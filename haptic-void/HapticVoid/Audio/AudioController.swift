@@ -3,10 +3,14 @@ import Foundation
 
 /// 音の出力全体。
 ///
-/// 2系統ある:
+/// 3系統ある:
 /// - **足音**: 自分の足元で鳴るので定位させない。録音サンプルを左右のパンだけで振り分ける。
-/// - **空間音**: `AVAudioEnvironmentNode` の HRTF レンダリングでバイノーラル化する。
-///   自分が回頭すると音源が逆向きに回るので、耳だけで方角が読める。
+/// - **基準音（beacon）**: 洞窟の部屋に置いた、脈打ち続ける方角の手がかり。
+/// - **回頭のフィードバック**: 回り始めた瞬間の前方にワールド固定で置く音。
+///   体が回るぶんだけ横へ流れていくので、「自分の周りを音が回る」形で回転が聴こえる。
+///
+/// 空間音は `AVAudioEnvironmentNode` の HRTF レンダリングでバイノーラル化している。
+/// 残響の量と長さは、いまいる場所の広さに連動する。
 ///
 /// - Important: 空間定位はヘッドホン前提。スピーカーで鳴らすと定位は失われる。
 final class AudioController {
@@ -16,12 +20,26 @@ final class AudioController {
 
     /// 方角の基準音。音源ごとに1本ずつプレイヤーを持つ。
     private var beaconPlayers: [AVAudioPlayerNode] = []
+    private var configuredBeacons: [Tuning.Audio.Beacon] = []
 
     /// 足音の再生プール。連続した一歩が互いを切らないよう複数本を使い回す。
     private var footstepPlayers: [AVAudioPlayerNode] = []
     private var footstepIndex = 0
     private var footstepLeft: AVAudioPCMBuffer?
     private var footstepRight: AVAudioPCMBuffer?
+
+    /// 回頭のフィードバック。開始のワンショットと、回っている間の持続音。
+    private let rotationStartPlayer = AVAudioPlayerNode()
+    private let rotationBedPlayer = AVAudioPlayerNode()
+    private var rotationStartBuffer: AVAudioPCMBuffer?
+    private var rotationBedBuffer: AVAudioPCMBuffer?
+    private var rotationBedVolume: Float = 0
+    private var rotationBedTarget: Float = 0
+
+    /// 残響の現在値（無駄な再設定を避けるため）。
+    private var lastReverbLevel: Double = .nan
+    private var lastReverbBlend: Double = .nan
+    private var currentPresetBand: Int = -1
 
     private var isRunning = false
     private var isGraphBuilt = false
@@ -38,9 +56,10 @@ final class AudioController {
         ) { [weak self] _ in
             guard let self, self.isRunning else { return }
             // 出力のサンプルレートが変わっている可能性があるので、グラフごと作り直す。
+            let beacons = self.configuredBeacons
             self.teardownGraph()
             self.isRunning = false
-            self.start()
+            self.start(beacons: beacons)
         }
     }
 
@@ -52,20 +71,31 @@ final class AudioController {
 
     // MARK: - ライフサイクル
 
-    func start() {
-        guard Tuning.Audio.enabled, !isRunning else { return }
+    /// - Parameter beacons: 洞窟の中に置かれた基準音。前回と違えばグラフを組み直す。
+    func start(beacons: [Tuning.Audio.Beacon]) {
+        guard Tuning.Audio.enabled else { return }
+        if isGraphBuilt, beacons != configuredBeacons {
+            teardownGraph()
+            isRunning = false
+        }
+        guard !isRunning else { return }
+
+        configuredBeacons = beacons
         configureSession()
         buildGraphIfNeeded()
         do {
             engine.prepare()
             try engine.start()
             isRunning = true
-            startBeacons()
-            // 足音のプレイヤーは鳴らしっぱなしにしておく。
-            // 停止状態から play() を挟むと一歩ぶん遅れて聴こえるため。
+            for player in beaconPlayers where !player.isPlaying {
+                player.play()
+            }
+            // 足音と回頭のプレイヤーは鳴らしっぱなしにしておく。
+            // 停止状態から play() を挟むと、そのぶん遅れて聴こえるため。
             for player in footstepPlayers where !player.isPlaying {
                 player.play()
             }
+            if !rotationStartPlayer.isPlaying { rotationStartPlayer.play() }
             lastMessage = nil
         } catch {
             lastMessage = "audio engine の起動に失敗: \(error.localizedDescription)"
@@ -74,7 +104,9 @@ final class AudioController {
 
     func stop() {
         guard isRunning else { return }
-        for player in beaconPlayers + footstepPlayers {
+        rotationBedTarget = 0
+        rotationBedVolume = 0
+        for player in beaconPlayers + footstepPlayers + [rotationStartPlayer, rotationBedPlayer] {
             player.stop()
         }
         engine.pause()
@@ -94,16 +126,24 @@ final class AudioController {
     }
 
     private func teardownGraph() {
-        for player in beaconPlayers + footstepPlayers {
+        let all = beaconPlayers + footstepPlayers + [rotationStartPlayer, rotationBedPlayer]
+        for player in all {
             player.stop()
             engine.detach(player)
         }
         engine.stop()
+        engine.detach(environment)
         beaconPlayers = []
         footstepPlayers = []
-        engine.detach(environment)
         footstepLeft = nil
         footstepRight = nil
+        rotationStartBuffer = nil
+        rotationBedBuffer = nil
+        rotationBedVolume = 0
+        rotationBedTarget = 0
+        lastReverbLevel = .nan
+        lastReverbBlend = .nan
+        currentPresetBand = -1
         isGraphBuilt = false
     }
 
@@ -126,24 +166,29 @@ final class AudioController {
         configureEnvironment()
 
         if Tuning.Audio.Space.enabled {
-            for beacon in Tuning.Audio.Space.beacons {
+            for beacon in configuredBeacons {
                 guard let buffer = makeBeaconBuffer(beacon, format: monoFormat) else { continue }
                 let player = AVAudioPlayerNode()
-                engine.attach(player)
-                // 空間音源はモノラルで繋がないと定位が効かない。
-                engine.connect(player, to: environment, format: monoFormat)
-                player.renderingAlgorithm = .HRTFHQ
+                attachSpatial(player, format: monoFormat)
                 player.position = AVAudio3DPoint(x: Float(beacon.x),
                                                  y: Float(beacon.height),
                                                  z: Float(-beacon.z))   // 北 = -z
                 player.volume = beacon.level
-                player.reverbBlend = Tuning.Audio.Space.reverbBlend
                 player.scheduleBuffer(buffer, at: nil, options: [.loops], completionHandler: nil)
                 beaconPlayers.append(player)
             }
         }
 
-        loadFootstepBuffers()
+        // 回頭のフィードバックも空間音として鳴らす（回っているのが分かる要はここ）。
+        rotationStartBuffer = loadBuffer(named: "RotateStart")
+        rotationBedBuffer = loadBuffer(named: "RotateBed")
+        attachSpatial(rotationStartPlayer, format: monoFormat)
+        attachSpatial(rotationBedPlayer, format: monoFormat)
+        rotationStartPlayer.volume = Tuning.Rotation.startLevel
+        rotationBedPlayer.volume = 0
+
+        footstepLeft = loadBuffer(named: "Footstep_L")
+        footstepRight = loadBuffer(named: "Footstep_R")
         if let format = footstepLeft?.format {
             for _ in 0..<4 {
                 let player = AVAudioPlayerNode()
@@ -158,6 +203,14 @@ final class AudioController {
         isGraphBuilt = true
     }
 
+    /// 空間音源として環境ノードへ繋ぐ。**モノラルで繋がないと定位が効かない。**
+    private func attachSpatial(_ player: AVAudioPlayerNode, format: AVAudioFormat) {
+        engine.attach(player)
+        engine.connect(player, to: environment, format: format)
+        player.renderingAlgorithm = .HRTFHQ
+        player.reverbBlend = Tuning.Audio.Space.reverbBlendTight
+    }
+
     private func configureEnvironment() {
         // ヘッドホン前提で HRTF を効かせる。
         environment.outputType = .headphones
@@ -170,13 +223,65 @@ final class AudioController {
         attenuation.maximumDistance = Float(Tuning.Audio.Space.maximumDistance)
         attenuation.rolloffFactor = 1.0
 
-        // わずかな残響。音が頭の中ではなく「外」で鳴っている感じ（頭外定位）を作る。
-        // これが無いと、方向は合っていても距離感が出ずに向きが読みにくい。
-        let reverb = environment.reverbParameters
-        reverb.enable = Tuning.Audio.Space.reverbEnabled
-        if Tuning.Audio.Space.reverbEnabled {
-            reverb.loadFactoryReverbPreset(.mediumRoom)
-            reverb.level = Tuning.Audio.Space.reverbLevelDB
+        environment.reverbParameters.enable = Tuning.Audio.Space.reverbEnabled
+    }
+
+    // MARK: - 空間の広さ → 残響
+
+    /// いまいる場所の広さを残響へ反映する。
+    ///
+    /// - レベルと混ぜ具合は連続的に動かす（響きの「量」）
+    /// - プリセットは段階的に切り替える（響きの「長さ」＝空間の大きさそのもの）
+    ///   行ったり来たりしないようヒステリシスを入れてある。
+    /// - Parameter radius: いまいる場所の広さ（メートル）
+    func updateSpace(radius: Double) {
+        guard isGraphBuilt, Tuning.Audio.Space.reverbEnabled else { return }
+
+        let tight = Tuning.Cave.corridorRadiusRange.lowerBound
+        let open = Tuning.Cave.chamberRadiusRange.upperBound
+        let t = clamped01((radius - tight) / max(open - tight, 0.001))
+
+        let level = lerp(Double(Tuning.Audio.Space.reverbLevelTightDB),
+                         Double(Tuning.Audio.Space.reverbLevelOpenDB), t)
+        if !(abs(level - lastReverbLevel) < 0.15) {
+            environment.reverbParameters.level = Float(level)
+            lastReverbLevel = level
+        }
+
+        let blend = lerp(Double(Tuning.Audio.Space.reverbBlendTight),
+                         Double(Tuning.Audio.Space.reverbBlendOpen), t)
+        if !(abs(blend - lastReverbBlend) < 0.01) {
+            for player in beaconPlayers + [rotationStartPlayer, rotationBedPlayer] {
+                player.reverbBlend = Float(blend)
+            }
+            lastReverbBlend = blend
+        }
+
+        if Tuning.Audio.Space.reverbPresetSwitching {
+            updateReverbPreset(radius: radius)
+        }
+    }
+
+    /// 広さの段階に応じて残響の「長さ」を変える。
+    private func updateReverbPreset(radius: Double) {
+        // 境界（メートル）。狭い通路 → 小部屋 → 広間 → 洞窟。
+        let thresholds: [Double] = [3.0, 6.0, 10.0]
+        let hysteresis = Tuning.Audio.Space.reverbPresetHysteresis
+
+        var band = 0
+        for (index, threshold) in thresholds.enumerated() {
+            // いま下の段にいるなら上がるのに余裕ぶん多く、上の段にいるなら下がるのに余裕ぶん少なく。
+            let edge = currentPresetBand > index ? threshold - hysteresis : threshold + hysteresis
+            if radius >= edge { band = index + 1 }
+        }
+        guard band != currentPresetBand else { return }
+        currentPresetBand = band
+
+        let presets: [AVAudioUnitReverbPreset] = [.smallRoom, .mediumRoom, .largeHall, .cathedral]
+        environment.reverbParameters.loadFactoryReverbPreset(presets[min(band, presets.count - 1)])
+        // プリセットを読み込むとレベルが既定へ戻るので、入れ直す。
+        if lastReverbLevel.isFinite {
+            environment.reverbParameters.level = Float(lastReverbLevel)
         }
     }
 
@@ -208,6 +313,7 @@ final class AudioController {
         let partials: [(ratio: Double, gain: Double)] = [
             (1.0, 1.00), (2.0, 0.52), (3.0, 0.30), (5.0, 0.18), (8.0, 0.10)
         ]
+        let partialSum = partials.reduce(0) { $0 + $1.gain }
         let decay = max(beacon.pulseDecay, 0.05)
         let attack = 0.012
         let bed = clamped01(beacon.bedLevel)
@@ -224,7 +330,7 @@ final class AudioController {
             for partial in partials {
                 sample += sin(twoPi * beacon.frequency * partial.ratio * t) * partial.gain
             }
-            sample /= partials.reduce(0) { $0 + $1.gain }
+            sample /= partialSum
 
             // 脈の間を埋める持続音。手がかりが完全に途切れないようにするため。
             let bedTone = sin(twoPi * beacon.frequency * 0.5 * t) * bed
@@ -240,19 +346,53 @@ final class AudioController {
         return buffer
     }
 
-    private func startBeacons() {
-        for player in beaconPlayers where !player.isPlaying {
-            player.play()
+    // MARK: - 回頭のフィードバック
+
+    /// 回り始めた地点の前方に音源を置き、開始音を鳴らして持続音を立ち上げる。
+    ///
+    /// 音源はワールド座標に固定したままにする。体が回ってもここは動かないので、
+    /// 回ったぶんだけ音が横へ流れる＝回転そのものが聴こえる。
+    func beginRotationCue(x: Double, z: Double) {
+        guard isRunning, Tuning.Rotation.enabled else { return }
+        let position = AVAudio3DPoint(x: Float(x), y: Float(Tuning.Rotation.height), z: Float(-z))
+        rotationStartPlayer.position = position
+        rotationBedPlayer.position = position
+
+        if let buffer = rotationStartBuffer {
+            rotationStartPlayer.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+            if !rotationStartPlayer.isPlaying { rotationStartPlayer.play() }
+        }
+        if let buffer = rotationBedBuffer, !rotationBedPlayer.isPlaying {
+            rotationBedPlayer.scheduleBuffer(buffer, at: nil, options: [.loops], completionHandler: nil)
+            rotationBedPlayer.volume = rotationBedVolume
+            rotationBedPlayer.play()
+        }
+        rotationBedTarget = Tuning.Rotation.bedLevel
+    }
+
+    /// 回るのをやめたので持続音を消す。
+    func endRotationCue() {
+        rotationBedTarget = 0
+    }
+
+    /// 持続音の出入りを毎フレーム進める。
+    func updateFades(dt: Double) {
+        guard isGraphBuilt else { return }
+        let rising = rotationBedTarget > rotationBedVolume
+        let tau = rising ? Tuning.Rotation.fadeInTime : Tuning.Rotation.fadeOutTime
+        rotationBedVolume = Float(smoothed(current: Double(rotationBedVolume),
+                                           target: Double(rotationBedTarget),
+                                           tau: tau, dt: dt))
+        rotationBedPlayer.volume = rotationBedVolume
+
+        // 消えきったら止める。次に回り始めたときにループを入れ直す。
+        if rotationBedTarget == 0, rotationBedVolume < 0.004, rotationBedPlayer.isPlaying {
+            rotationBedPlayer.stop()
+            rotationBedVolume = 0
         }
     }
 
     // MARK: - 足音
-
-    /// バンドルに入れた録音サンプルを読み込む。
-    private func loadFootstepBuffers() {
-        footstepLeft = loadBuffer(named: "Footstep_L")
-        footstepRight = loadBuffer(named: "Footstep_R")
-    }
 
     private func loadBuffer(named name: String) -> AVAudioPCMBuffer? {
         guard let url = Bundle.main.url(forResource: name, withExtension: "wav") else {
