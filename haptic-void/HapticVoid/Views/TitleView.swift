@@ -32,7 +32,8 @@ struct TitleView: View {
             VStack(alignment: .leading, spacing: 10) {
                 instruction("両手の親指が、あなたの両足です。")
                 instruction("交互に下へ払うと、一歩ずつ進みます。")
-                instruction("両親指を結ぶ線が、体の向き。傾ければその分だけ曲がります。")
+                instruction("片方の親指を止めると、カチッと鳴って舵になります。")
+                instruction("そのまま反対の親指を動かすと、動かした角度だけ向きが変わります。")
                 instruction("遠くで鳴っている音が、方角の手がかりです。")
                 instruction("まっすぐ歩いているつもりでも、少しずつ逸れます。")
                 instruction("できれば目を閉じて。失敗はありません。")

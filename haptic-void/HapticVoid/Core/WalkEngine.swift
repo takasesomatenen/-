@@ -9,9 +9,10 @@ import SwiftUI
 /// 入力モデル:
 /// - **前進**: 左右の親指を交互に下へ払う。下方向の動きだけが推進力になる（上へ戻す動作は足を運び直す動作）。
 ///   同じ足を続けて使うとゲインが落ちるので、左右交互でないと前へ進まない。
-/// - **回頭**: 踏み込みをやめてから少し待つと回れるようになる。
+/// - **回頭**: 片方の親指を**止めたまま**にすると回頭モードに入り、もう片方が舵になる。
 ///   両親指を結ぶ線＝肩のラインが回った角度ぶん、進行方向も回る。
-///   歩いている間は肩のラインが傾いても向きを一切変えないので、ただ歩けばまっすぐ進む。
+///   モードの間は前進しないので、回すために親指を下げても歩き出さない。
+///   歩いている間は肩のラインが傾いても向きは一切変わらないので、ただ歩けばまっすぐ進む。
 /// - **蛇行**: 目を閉じて歩くと人間はまっすぐ歩けない。これを一歩ごとのランダムウォークとして入れてある。
 @MainActor
 final class WalkEngine: ObservableObject {
@@ -101,18 +102,19 @@ final class WalkEngine: ObservableObject {
     private var steeringDelta: Double = 0
     private var smoothedTurnRate: Double = 0
 
-    /// 回頭フィードバック音の状態。
-    private var isRotationCueActive = false
-    private var rotationIdleTime: Double = 0
-
     /// 蛇行のランダムウォーク（-1...1 付近）。
     private var driftVelocity: Double = 0
 
     /// 表示・音づけ用の速度（m/s）。
     private var smoothedSpeed: Double = 0
 
-    /// 最後に踏み込んでからの経過時間（秒）。これが一定を超えるまで回頭できない。
-    private var timeSinceStride: Double = 0
+    /// 各足が静止し続けている時間（秒）。片方が一定時間止まると回頭モードに入る。
+    private var leftStillTime: Double = 0
+    private var rightStillTime: Double = 0
+    /// 回頭モード。この間は前進せず、肩のラインの回転だけが向きに効く。
+    private var isPivoting = false
+    /// 回頭モードで軸にしている足。
+    private var pivotAnchor: Foot = .right
 
     /// いまいる場所の広さ（メートル）。残響に連動する。
     private var smoothedSpaceRadius: Double = Tuning.Cave.outsideRadius
@@ -188,11 +190,11 @@ final class WalkEngine: ObservableObject {
         previousShoulderAngle = nil
         steeringDelta = 0
         smoothedTurnRate = 0
-        isRotationCueActive = false
-        rotationIdleTime = 0
         driftVelocity = 0
         smoothedSpeed = 0
-        timeSinceStride = 0
+        leftStillTime = 0
+        rightStillTime = 0
+        isPivoting = false
         trail = [CGPoint(x: 0, y: 0)]
 
         buildWorld()
@@ -208,7 +210,7 @@ final class WalkEngine: ObservableObject {
         left = FootState()
         right = FootState()
         previousShoulderAngle = nil
-        isRotationCueActive = false
+        isPivoting = false
         publishDebugSnapshot()
     }
 
@@ -257,7 +259,7 @@ final class WalkEngine: ObservableObject {
         left = FootState()
         right = FootState()
         previousShoulderAngle = nil
-        isRotationCueActive = false
+        isPivoting = false
     }
 
     private func startRuntime() {
@@ -288,9 +290,10 @@ final class WalkEngine: ObservableObject {
 
         steeringDelta = 0
         sampleFootDeltas()
-        updateStrideTimer(dt: dt)
-        updateHeadingFromShoulderLine()
-        let advance = consumeStrideInput()
+        updatePivotMode(dt: dt)
+        updateHeadingFromShoulderLine(dt: dt)
+        // 回頭モードの間は前進しない。舵を切るために親指を下げても歩き出さないようにするため。
+        let advance = isPivoting ? 0 : consumeStrideInput()
 
         // 前進は指の動きと 1:1 で即座に反映する（平滑化すると足の裏の感じが鈍る）。
         if advance > 0 {
@@ -327,22 +330,69 @@ final class WalkEngine: ObservableObject {
         sample(&right)
     }
 
-    /// 下方向の動き（＝踏み込み）があったかを見て、回頭の可否を決めるタイマーを進める。
-    private func updateStrideTimer(dt: Double) {
-        let downward = max(Double(left.frameDelta.dy), 0) + max(Double(right.frameDelta.dy), 0)
-        // わずかでも踏み込んでいたら、その場で回頭を禁止する。
-        if downward > 0.5 {
-            timeSinceStride = 0
-        } else {
-            timeSinceStride += dt
+    /// 回頭モードの出入りを判定する。
+    ///
+    /// 歩行と回頭は、肩のラインの動きとしては原理的に区別できない。
+    /// 交互に払う動作はそれ自体が肩のラインの回転そのものだからで、
+    /// 「下方向なら歩行」のように信号側で切り分けようとすると必ず破綻する。
+    /// （下方向だけ回頭を止めると、足を戻す上方向のぶんが打ち消されずに残って一歩ごとに曲がる）
+    ///
+    /// なので **片方をホールドする** という明示的な操作でモードを分ける。
+    /// 入った合図は Zippo の音で返るので、目を閉じていてもモードが分かる。
+    private func updatePivotMode(dt: Double) {
+        let speedLeft = speed(of: left, dt: dt)
+        let speedRight = speed(of: right, dt: dt)
+
+        // 指が乗っていない間は静止時間を溜めない。
+        // 溜めてしまうと、指を置いた瞬間に回頭モードへ入って歩き出しの一歩が食われる。
+        leftStillTime = left.isDown && speedLeft < Tuning.Walk.pivotStillSpeed ? leftStillTime + dt : 0
+        rightStillTime = right.isDown && speedRight < Tuning.Walk.pivotStillSpeed ? rightStillTime + dt : 0
+
+        guard left.isDown, right.isDown else {
+            if isPivoting { endPivot() }
+            return
         }
+
+        if isPivoting {
+            // 軸にしていた指がはっきり動き出したら歩行へ戻る。
+            let anchorSpeed = pivotAnchor == .left ? speedLeft : speedRight
+            if anchorSpeed > Tuning.Walk.pivotReleaseSpeed { endPivot() }
+            return
+        }
+
+        let hold = Tuning.Walk.pivotHoldTime
+        if leftStillTime >= hold && leftStillTime >= rightStillTime {
+            beginPivot(anchor: .left)
+        } else if rightStillTime >= hold {
+            beginPivot(anchor: .right)
+        }
+    }
+
+    private func speed(of state: FootState, dt: Double) -> Double {
+        guard state.isDown, dt > 0 else { return 0 }
+        return hypot(Double(state.frameDelta.dx), Double(state.frameDelta.dy)) / dt
+    }
+
+    private func beginPivot(anchor: Foot) {
+        isPivoting = true
+        pivotAnchor = anchor
+        // 回り始めた瞬間の正面に音源を置く。以後この点は動かないので、
+        // 体が回るぶんだけ音が横へ流れる＝回転そのものが聴こえる。
+        let x = positionX + sin(heading) * Tuning.Rotation.distance
+        let z = positionZ + cos(heading) * Tuning.Rotation.distance
+        audio.beginRotationCue(x: x, z: z)
+    }
+
+    private func endPivot() {
+        isPivoting = false
+        audio.endRotationCue()
     }
 
     /// 肩のライン（両親指を結ぶ線）の回転を進行方向へ反映する。
     ///
-    /// **歩くのをやめてから**でないと回れない。歩行中に肩のラインが傾いても向きは変えない。
+    /// **回頭モードのときだけ**効く。歩行中に肩のラインが傾いても向きは変えない。
     /// こうしないと、左右の歩幅がわずかに違うだけで、まっすぐ歩いているつもりでも曲がってしまう。
-    private func updateHeadingFromShoulderLine() {
+    private func updateHeadingFromShoulderLine(dt: Double) {
         guard left.isDown, right.isDown else {
             // 片方でも浮いたら基準を捨てる。置き直しで勝手に回らないようにするため。
             previousShoulderAngle = nil
@@ -354,18 +404,20 @@ final class WalkEngine: ObservableObject {
 
         // 回頭しない場合でも基準は更新する。次に回し始めたときに角度が飛ばないように。
         defer { previousShoulderAngle = angle }
-        guard let previous = previousShoulderAngle else { return }
-        guard timeSinceStride >= Tuning.Walk.pivotIdleTime else { return }
+        guard let previous = previousShoulderAngle, isPivoting else { return }
 
         var delta = angle - previous
         while delta > .pi { delta -= 2 * .pi }
         while delta < -.pi { delta += 2 * .pi }
 
         // 指を持ち替えた瞬間は角度が飛ぶので、大きすぎる変化は無視する。
-        // 指の微細な揺れで回らないよう、小さすぎる変化も捨てる。
         let threshold = Tuning.Walk.regripAngleThresholdDegrees * .pi / 180
-        let deadzone = Tuning.Walk.steeringDeadzoneDegrees * .pi / 180
-        guard abs(delta) < threshold, abs(delta) > deadzone else { return }
+        guard abs(delta) < threshold else { return }
+
+        // 指の微細な揺れで回らないための不感帯。
+        // **角速度**で判定する（フレームあたりで見ると、ゆっくり回したときに丸ごと捨ててしまう）。
+        let deadzoneRate = Tuning.Walk.steeringDeadzoneDegreesPerSecond * .pi / 180
+        guard abs(delta) / dt > deadzoneRate else { return }
 
         // 画面の y は下向きが正なので、素の delta は「左親指を下げると左へ曲がる」になる。
         // 歩行の実感（左足を大きく踏み出すと右へ向く）に合わせて符号を反転させておく。
@@ -435,37 +487,13 @@ final class WalkEngine: ObservableObject {
 
     // MARK: - 回頭のフィードバック
 
-    /// 回り始めたら、そのときの**前方**に音源を置いてカチッと鳴らし、持続音を出す。
-    ///
-    /// 音源はワールド座標に固定したままなので、体が回るぶんだけ音が横へ流れていく。
-    /// 「自分の周りを音が回る」状態を作ることで、回頭そのものを聴けるようにする。
+    /// 表示用の角速度を追従させる。
+    /// 回頭フィードバック音の出し入れ自体は、モードの出入り（`beginPivot` / `endPivot`）で行う。
     private func updateRotationCue(dt: Double) {
         smoothedTurnRate = smoothed(current: smoothedTurnRate,
                                     target: steeringDelta / dt,
                                     tau: 0.08,
                                     dt: dt)
-        guard Tuning.Rotation.enabled else { return }
-
-        let rateDegrees = abs(smoothedTurnRate) * 180 / .pi
-
-        if isRotationCueActive {
-            if rateDegrees > Tuning.Rotation.sustainRateDegreesPerSecond {
-                rotationIdleTime = 0
-            } else {
-                rotationIdleTime += dt
-            }
-            if rotationIdleTime > Tuning.Rotation.releaseDelay {
-                audio.endRotationCue()
-                isRotationCueActive = false
-            }
-        } else if rateDegrees > Tuning.Rotation.onsetRateDegreesPerSecond {
-            // 回り始めた瞬間の正面。以後この点は動かさない。
-            let x = positionX + sin(heading) * Tuning.Rotation.distance
-            let z = positionZ + cos(heading) * Tuning.Rotation.distance
-            audio.beginRotationCue(x: x, z: z)
-            isRotationCueActive = true
-            rotationIdleTime = 0
-        }
     }
 
     // MARK: - 空間の広さ
@@ -498,7 +526,7 @@ final class WalkEngine: ObservableObject {
         snapshot.speed = smoothedSpeed
         snapshot.driftDegrees = driftVelocity * Tuning.Walk.blindDriftDegreesPerStep
         snapshot.spaceRadius = smoothedSpaceRadius
-        snapshot.isRotating = isRotationCueActive
+        snapshot.isRotating = isPivoting
         snapshot.turnRateDegrees = smoothedTurnRate * 180 / .pi
 
         // いちばん近い基準音との関係を出す。
