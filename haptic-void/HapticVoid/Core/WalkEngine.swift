@@ -40,8 +40,8 @@ final class WalkEngine: ObservableObject {
         var swingFootIsLeft: Bool = true
         var speed: Double = 0
         var driftDegrees: Double = 0
-        var landmarkBearingDegrees: Double = 0
-        var landmarkDistance: Double = 0
+        var beaconBearingDegrees: Double = 0
+        var beaconDistance: Double = 0
     }
 
     // MARK: - 公開状態
@@ -49,6 +49,8 @@ final class WalkEngine: ObservableObject {
     @Published private(set) var phase: Phase = .title
     @Published private(set) var stepCount: Int = 0
     @Published private(set) var debug = DebugSnapshot()
+    /// 歩いた軌跡（x = 東, y = 北。メートル）。デバッグマップの描画用。
+    @Published private(set) var trail: [CGPoint] = []
     @Published var isDebugVisible: Bool = Tuning.Debug.startVisible
 
     /// Core Haptics が使えるか（シミュレータでは false）。
@@ -92,6 +94,10 @@ final class WalkEngine: ObservableObject {
 
     /// 表示・音づけ用の速度（m/s）。
     private var smoothedSpeed: Double = 0
+
+    /// 軌跡を1点打つ最小間隔（メートル）と、保持する最大点数。
+    private let trailSpacing: Double = 0.2
+    private let trailCapacity: Int = 600
 
     // MARK: - 画面からの入力
 
@@ -157,6 +163,7 @@ final class WalkEngine: ObservableObject {
         previousShoulderAngle = nil
         driftVelocity = 0
         smoothedSpeed = 0
+        trail = [CGPoint(x: 0, y: 0)]
         phase = .walking
         startRuntime()
     }
@@ -216,6 +223,7 @@ final class WalkEngine: ObservableObject {
         if advance > 0 {
             positionX += sin(heading) * advance
             positionZ += cos(heading) * advance
+            recordTrail()
         }
 
         let instantaneousSpeed = dt > 0 ? advance / dt : 0
@@ -334,15 +342,40 @@ final class WalkEngine: ObservableObject {
         snapshot.speed = smoothedSpeed
         snapshot.driftDegrees = driftVelocity * Tuning.Walk.blindDriftDegreesPerStep
 
-        let dx = Tuning.Audio.Landmark.position.x - positionX
-        let dz = Tuning.Audio.Landmark.position.z - positionZ
-        snapshot.landmarkDistance = (dx * dx + dz * dz).squareRoot()
-        // 自分の向きから見て、基準音がどちらにあるか（0 = 正面、+ = 右）。
-        let absoluteBearing = atan2(dx, dz)
-        snapshot.landmarkBearingDegrees = normalizedSignedDegrees((absoluteBearing - heading) * 180 / .pi)
+        // いちばん近い基準音との関係を出す。
+        if let nearest = nearestBeacon() {
+            let dx = nearest.x - positionX
+            let dz = nearest.z - positionZ
+            snapshot.beaconDistance = (dx * dx + dz * dz).squareRoot()
+            // 自分の向きから見て、その音がどちらにあるか（0 = 正面、+ = 右）。
+            let absoluteBearing = atan2(dx, dz)
+            snapshot.beaconBearingDegrees = normalizedSignedDegrees((absoluteBearing - heading) * 180 / .pi)
+        }
 
         if snapshot != debug {
             debug = snapshot
+        }
+    }
+
+    /// 現在地を軌跡に打つ。一定距離動いたときだけ点を増やす。
+    private func recordTrail() {
+        let point = CGPoint(x: positionX, y: positionZ)
+        if let last = trail.last {
+            let dx = Double(point.x - last.x)
+            let dy = Double(point.y - last.y)
+            guard (dx * dx + dy * dy).squareRoot() >= trailSpacing else { return }
+        }
+        trail.append(point)
+        if trail.count > trailCapacity {
+            trail.removeFirst(trail.count - trailCapacity)
+        }
+    }
+
+    private func nearestBeacon() -> Tuning.Audio.Beacon? {
+        Tuning.Audio.Space.beacons.min { a, b in
+            let da = (a.x - positionX) * (a.x - positionX) + (a.z - positionZ) * (a.z - positionZ)
+            let db = (b.x - positionX) * (b.x - positionX) + (b.z - positionZ) * (b.z - positionZ)
+            return da < db
         }
     }
 

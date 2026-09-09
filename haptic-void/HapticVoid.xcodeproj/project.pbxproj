@@ -12,11 +12,13 @@
 		448E41B3D88554C6B50E1234 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AB2DDBE4C6A12163A8C6002 /* RootView.swift */; };
 		5C415EE8FE38B6567515B066 /* Tuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B8676FDBDB829246EE1C34 /* Tuning.swift */; };
 		5D80807FAA19892EF4487F23 /* MultiFingerTapCatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24849905A5F8E2F53ACDE943 /* MultiFingerTapCatcher.swift */; };
+		60A3941C1B74E2D91DA466C9 /* Footstep_L.wav in Resources */ = {isa = PBXBuildFile; fileRef = E6C044000E9E23A7459C6C7D /* Footstep_L.wav */; };
 		77928671685901ADD81E0E31 /* WalkEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EE2E0A20291CB341ADCD001 /* WalkEngine.swift */; };
 		872B9991D5E1D40F6CC83DA0 /* DebugOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756E75F8A62E41693625E480 /* DebugOverlay.swift */; };
 		8C2FE91FBF3017B8448CDBE3 /* DualThumbTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F5DC422DE3DC3E144E138F /* DualThumbTracker.swift */; };
 		94E0285B0FAFC7830B1B82C1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 11BB6AE66870FFD5371D7796 /* Assets.xcassets */; };
 		B3011CE7F10AA933CD8D5120 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E84EA61B037833EE6B2EFD /* AudioController.swift */; };
+		BAA5E9A72FF038476B629D8C /* Footstep_R.wav in Resources */ = {isa = PBXBuildFile; fileRef = FC6331DF37439A92F225E030 /* Footstep_R.wav */; };
 		CC280A42BCC9112472741A98 /* HapticVoidApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 160067D4F119991EF18097D1 /* HapticVoidApp.swift */; };
 		EFA19B0AD7C2D0A9035669D0 /* HapticsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A9FD3D9BF8213D4C6ADAF50 /* HapticsController.swift */; };
 		F658C593FBA52E4100930C03 /* TitleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1D09CA0F011993335CA3E4 /* TitleView.swift */; };
@@ -38,7 +40,9 @@
 		B5083A754EAA805EFC6AE1C2 /* DisplayLinkDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayLinkDriver.swift; sourceTree = "<group>"; };
 		B9B8676FDBDB829246EE1C34 /* Tuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tuning.swift; sourceTree = "<group>"; };
 		D89306BCA9EC406921DF3D6A /* HapticVoid.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HapticVoid.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E6C044000E9E23A7459C6C7D /* Footstep_L.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Footstep_L.wav; sourceTree = "<group>"; };
 		F4F5DC422DE3DC3E144E138F /* DualThumbTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualThumbTracker.swift; sourceTree = "<group>"; };
+		FC6331DF37439A92F225E030 /* Footstep_R.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Footstep_R.wav; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -48,6 +52,15 @@
 				26E84EA61B037833EE6B2EFD /* AudioController.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		1C7E27D0B3F439909C7DEC3B /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				E6C044000E9E23A7459C6C7D /* Footstep_L.wav */,
+				FC6331DF37439A92F225E030 /* Footstep_R.wav */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		39C19604B7EFF2DBB1B1D016 /* Views */ = {
@@ -106,6 +119,7 @@
 				1B975AAA2F4E7DFAD5E3A5A7 /* Audio */,
 				98479A0A7E0FB018AA92772F /* Core */,
 				DCC3346B7ABDFA90DAF13B91 /* Haptics */,
+				1C7E27D0B3F439909C7DEC3B /* Resources */,
 				39C19604B7EFF2DBB1B1D016 /* Views */,
 			);
 			path = HapticVoid;
@@ -172,6 +186,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				94E0285B0FAFC7830B1B82C1 /* Assets.xcassets in Resources */,
+				60A3941C1B74E2D91DA466C9 /* Footstep_L.wav in Resources */,
+				BAA5E9A72FF038476B629D8C /* Footstep_R.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

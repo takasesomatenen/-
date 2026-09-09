@@ -48,28 +48,28 @@ enum Tuning {
         static var headingSmoothing: Double = 0.05
     }
 
-    // MARK: - 足音（触覚＋クリック音）
+    // MARK: - 足音
 
     enum Footstep {
         /// 一歩の触覚の強さと鋭さ。
         static var hapticIntensity: Double = 0.85
         static var hapticSharpness: Double = 0.62
 
-        /// 左右で質感を少しだけ変えると、どちらの足かが触覚だけで分かる。
+        /// 左右で質感を少しだけ変えると、どちらの足かが触覚だけでも分かる。
         /// 右足に対する乗算オフセット（1.0 で左右同じ）。
         static var rightFootIntensityScale: Double = 0.92
         static var rightFootSharpnessOffset: Double = -0.10
 
-        /// クリック音の中心周波数（Hz）と減衰時定数（秒）。
-        /// 低く・短くするほど「コツッ」、高く・長くするほど「カツン」に寄る。
-        static var clickFrequency: Double = 220.0
-        static var clickDecay: Double = 0.045
-        /// 音の芯に混ぜるノイズの量（0...1）。硬さ・素材感を決める。
-        static var clickNoiseMix: Double = 0.55
-        static var clickLevel: Double = 0.5
+        /// 足音サンプルの音量。
+        static var level: Float = 0.9
 
         /// 足音の左右への振り分け（0 = 中央、1 = 完全に左右）。
-        static var clickPan: Double = 0.35
+        /// 自分の足元の音なので定位はさせず、パンだけで左右を示す。
+        static var pan: Float = 0.3
+
+        /// 一歩ごとの音量のばらつき（0 で完全に均一）。
+        /// 同じ波形の連打は機械的に聴こえるので、わずかに散らす。
+        static var levelVariation: Double = 0.14
     }
 
     // MARK: - 触覚エンジン
@@ -96,25 +96,51 @@ enum Tuning {
         /// 出力全体のマスターボリューム。
         static var masterVolume: Float = 0.9
 
-        /// 遠くで鳴り続ける方角の基準音（landmark）。
-        /// これが無いと、自分がどれだけ回ったのかが音から読めない。
-        enum Landmark {
+        /// 空間に置く方角の基準音。
+        ///
+        /// 1つだけだと「動いた」しか分からない。複数あって初めて、
+        /// 星座が回るように自分が何度回ったのかが読める。
+        struct Beacon {
+            /// 位置（メートル）。x = 東、z = 北。
+            var x: Double
+            var z: Double
+            /// 高さ（メートル）。耳の高さから少しずらすと頭外に定位しやすい。
+            var height: Double = 1.4
+            /// 基音（Hz）。
+            ///
+            /// - Important: 低い純音は人間が最も定位できない信号（ITD しか手がかりが無く、
+            ///   前後の取り違えも起きやすい）。倍音が 1〜3kHz に届く高さにして、
+            ///   ILD とスペクトル手がかりが効く帯域にエネルギーを置くこと。
+            var frequency: Double
+            /// 脈打つ周期（秒）。**アタックのある音でないと定位は立たない。**
+            /// 音源ごとに変えると、複数あっても聴き分けられる。
+            var pulseInterval: Double
+            /// 脈の減衰時定数（秒）。
+            var pulseDecay: Double = 0.55
+            /// 脈と脈の間を埋める持続音の量（0...1）。手がかりが途切れないように少しだけ入れる。
+            var bedLevel: Double = 0.18
+            var level: Float = 0.8
+        }
+
+        enum Space {
             static var enabled: Bool = true
-            /// 基準音の位置（メートル）。x = 東、z = 北。
-            static var position: (x: Double, z: Double) = (0, 18)
-            /// 基準音の高さ（メートル）。少し上に置くと頭外に定位しやすい。
-            static var height: Double = 1.2
-            /// 音量（0...1）。
-            static var level: Float = 0.55
-            /// 基準音のピッチ（Hz）と、うなりを作るデチューン比。
-            static var frequency: Double = 92.5
-            static var detuneRatio: Double = 1.004
-            /// ゆっくりした音量ゆらぎ。
-            static var lfoFrequency: Double = 0.09
-            static var lfoDepth: Double = 0.22
+
+            /// 方角の基準音。バラけた方向・高さ・音色にしておくと回頭が読みやすい。
+            static var beacons: [Beacon] = [
+                Beacon(x:   0, z:  12, height: 1.5, frequency: 294.0, pulseInterval: 1.7),
+                Beacon(x:  10, z:  -5, height: 1.1, frequency: 392.0, pulseInterval: 2.3),
+                Beacon(x:  -9, z:   2, height: 1.8, frequency: 233.0, pulseInterval: 2.9)
+            ]
+
             /// この距離（メートル）から先は減衰しきる。
-            static var referenceDistance: Double = 3.0
+            static var referenceDistance: Double = 4.0
             static var maximumDistance: Double = 60.0
+
+            /// わずかな残響。頭の中ではなく「外」で鳴っている感じ（頭外定位）が出て、
+            /// 方向が格段に読みやすくなる。入れすぎると定位が滲むので控えめに。
+            static var reverbEnabled: Bool = true
+            static var reverbLevelDB: Float = -10.0
+            static var reverbBlend: Float = 0.22
         }
     }
 

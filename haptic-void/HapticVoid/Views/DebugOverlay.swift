@@ -23,9 +23,16 @@ struct DebugOverlay: View {
 
             Divider().background(.white.opacity(0.2)).padding(.vertical, 4)
 
-            row("landmark", String(format: "%+.0f°  %.1fm",
-                                   engine.debug.landmarkBearingDegrees,
-                                   engine.debug.landmarkDistance))
+            row("beacon", String(format: "%+.0f°  %.1fm",
+                                 engine.debug.beaconBearingDegrees,
+                                 engine.debug.beaconDistance))
+
+            // 実際に回れていたのか、まっすぐ歩けていたのかを目で確かめるための小さな地図。
+            WalkMap(trail: engine.trail,
+                    position: CGPoint(x: engine.debug.positionX, y: engine.debug.positionZ),
+                    headingDegrees: engine.debug.headingDegrees)
+                .frame(height: 150)
+                .padding(.top, 6)
 
             if !engine.supportsHaptics {
                 Text("no haptics")
@@ -74,6 +81,96 @@ struct DebugOverlay: View {
                 }
             }
             .frame(height: 6)
+        }
+    }
+}
+
+/// 歩いた軌跡を上から見た小さな地図。
+///
+/// 触覚と音だけでは「本当に回れていたのか」「まっすぐ歩けていたのか」が確かめられないので、
+/// 感覚と実際の挙動を突き合わせるために描いている。上が北。
+private struct WalkMap: View {
+    let trail: [CGPoint]
+    /// 現在地（x = 東, y = 北。メートル）
+    let position: CGPoint
+    let headingDegrees: Double
+
+    /// 表示範囲の下限と上限（メートル）。
+    /// 下限が無いと歩き始めに極端に拡大され、上限が無いと遠い基準音に引っ張られて軌跡が潰れる。
+    private let minimumSpan: Double = 12
+    private let maximumSpan: Double = 40
+
+    var body: some View {
+        Canvas { context, size in
+            let beacons = Tuning.Audio.Space.beacons.map { CGPoint(x: $0.x, y: $0.z) }
+            let points = trail + [position] + beacons
+
+            var minX = points.map(\.x).min() ?? 0
+            var maxX = points.map(\.x).max() ?? 0
+            var minY = points.map(\.y).min() ?? 0
+            var maxY = points.map(\.y).max() ?? 0
+
+            var centerX = Double(minX + maxX) * 0.5
+            var centerY = Double(minY + maxY) * 0.5
+            var span = max(Double(maxX - minX), Double(maxY - minY))
+
+            if span > maximumSpan {
+                // 広がりすぎたら自分を中心に切り取る（軌跡が見えなくなるのを防ぐ）。
+                span = maximumSpan
+                centerX = Double(position.x)
+                centerY = Double(position.y)
+            }
+            span = max(span, minimumSpan)
+
+            let inset: Double = 10
+            let scale = (Double(min(size.width, size.height)) - inset * 2) / span
+            let midX = Double(size.width) * 0.5
+            let midY = Double(size.height) * 0.5
+
+            // ワールド（x=東, y=北）→ 画面（右=東, 上=北）
+            func project(_ p: CGPoint) -> CGPoint {
+                CGPoint(x: midX + (Double(p.x) - centerX) * scale,
+                        y: midY - (Double(p.y) - centerY) * scale)
+            }
+
+            // 枠と北の印
+            let frame = Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 6)
+            context.stroke(frame, with: .color(.white.opacity(0.12)), lineWidth: 1)
+            context.draw(Text("N").font(.system(size: 8, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.25)),
+                         at: CGPoint(x: size.width - 10, y: 9))
+
+            // 基準音
+            for beacon in beacons {
+                let p = project(beacon)
+                let r: Double = 3
+                let circle = Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2))
+                context.stroke(circle, with: .color(.white.opacity(0.35)), lineWidth: 1)
+            }
+
+            // 軌跡
+            if trail.count > 1 {
+                var path = Path()
+                path.move(to: project(trail[0]))
+                for point in trail.dropFirst() {
+                    path.addLine(to: project(point))
+                }
+                context.stroke(path, with: .color(.white.opacity(0.4)),
+                               style: StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round))
+            }
+
+            // 現在地と向き
+            let here = project(position)
+            let dot = Path(ellipseIn: CGRect(x: here.x - 2.5, y: here.y - 2.5, width: 5, height: 5))
+            context.fill(dot, with: .color(.white.opacity(0.85)))
+
+            let radians = headingDegrees * .pi / 180
+            var heading = Path()
+            heading.move(to: here)
+            // 北が上、時計回りが正。
+            heading.addLine(to: CGPoint(x: here.x + sin(radians) * 12,
+                                        y: here.y - cos(radians) * 12))
+            context.stroke(heading, with: .color(.white.opacity(0.7)), lineWidth: 1.5)
         }
     }
 }
