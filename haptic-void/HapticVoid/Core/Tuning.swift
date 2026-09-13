@@ -98,10 +98,11 @@ enum Tuning {
     /// 回頭モードの間だけ鳴る音。
     ///
     /// 回転を「音が自分の周りを回る」形で伝えるための仕掛け。
-    /// モードに入った瞬間の**前方**にワールド座標で固定した音源を置き、
-    /// そこでカチッと鳴らしてから持続音を出す。
+    /// モードに入った瞬間の**前方**にワールド座標で固定した音源を置き、持続音を出す。
     /// 音源は空間に留まったままなので、体が回るぶんだけ音が横へ流れていく。
-    /// カチッはモードに入った合図も兼ねていて、目を閉じていても舵に切り替わったのが分かる。
+    ///
+    /// - Note: 合図の Zippo は焚き火の着火へ移した。
+    ///   回頭の伝え方は根本から作り直す予定で、いまは持続音だけが残っている。
     enum Rotation {
         static var enabled: Bool = true
 
@@ -113,7 +114,6 @@ enum Tuning {
         static var fadeInTime: Double = 0.12
         static var fadeOutTime: Double = 0.5
 
-        static var startLevel: Float = 0.9
         static var bedLevel: Float = 0.55
     }
 
@@ -156,8 +156,8 @@ enum Tuning {
         /// 誤って続けて反応しないための待ち時間（秒）。
         static var retriggerDelay: Double = 1.0
 
-        /// 着火音のあと、パチパチを立ち上げるまでの間（秒）。
-        static var bedDelay: Double = 0.35
+        /// 着火音（Zippo）が鳴り終わってから、パチパチを立ち上げるまでの間（秒）。
+        static var bedDelay: Double = 0.45
         static var fadeInTime: Double = 0.9
         static var fadeOutTime: Double = 1.4
 

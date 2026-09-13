@@ -21,7 +21,6 @@
 		8C2FE91FBF3017B8448CDBE3 /* DualThumbTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F5DC422DE3DC3E144E138F /* DualThumbTracker.swift */; };
 		94E0285B0FAFC7830B1B82C1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 11BB6AE66870FFD5371D7796 /* Assets.xcassets */; };
 		998E1198415FA38B797887C8 /* CaveSpace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E1C88DED04F631BB34D0022 /* CaveSpace.swift */; };
-		A38F994F2B71EBE477240C3E /* RotateStart.wav in Resources */ = {isa = PBXBuildFile; fileRef = D13E83BC9776E9790D78E69B /* RotateStart.wav */; };
 		B3011CE7F10AA933CD8D5120 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E84EA61B037833EE6B2EFD /* AudioController.swift */; };
 		BAA5E9A72FF038476B629D8C /* Footstep_R.wav in Resources */ = {isa = PBXBuildFile; fileRef = FC6331DF37439A92F225E030 /* Footstep_R.wav */; };
 		C62647140F57BA78F848988C /* FireIgnite.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6F7E531155E6E9AEC0598B50 /* FireIgnite.wav */; };
@@ -50,7 +49,6 @@
 		B5083A754EAA805EFC6AE1C2 /* DisplayLinkDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayLinkDriver.swift; sourceTree = "<group>"; };
 		B9B8676FDBDB829246EE1C34 /* Tuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tuning.swift; sourceTree = "<group>"; };
 		BD8C30FE17EA8AE117B73E7C /* FireBed.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = FireBed.wav; sourceTree = "<group>"; };
-		D13E83BC9776E9790D78E69B /* RotateStart.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = RotateStart.wav; sourceTree = "<group>"; };
 		D89306BCA9EC406921DF3D6A /* HapticVoid.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HapticVoid.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E6C044000E9E23A7459C6C7D /* Footstep_L.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Footstep_L.wav; sourceTree = "<group>"; };
 		F4F5DC422DE3DC3E144E138F /* DualThumbTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DualThumbTracker.swift; sourceTree = "<group>"; };
@@ -74,7 +72,6 @@
 				E6C044000E9E23A7459C6C7D /* Footstep_L.wav */,
 				FC6331DF37439A92F225E030 /* Footstep_R.wav */,
 				3E507C70AC58358D96B0D462 /* RotateBed.wav */,
-				D13E83BC9776E9790D78E69B /* RotateStart.wav */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -209,7 +206,6 @@
 				60A3941C1B74E2D91DA466C9 /* Footstep_L.wav in Resources */,
 				BAA5E9A72FF038476B629D8C /* Footstep_R.wav in Resources */,
 				52C0091D1F1E9BF55EFF0DB8 /* RotateBed.wav in Resources */,
-				A38F994F2B71EBE477240C3E /* RotateStart.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

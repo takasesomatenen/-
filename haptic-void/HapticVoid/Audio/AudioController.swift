@@ -28,10 +28,11 @@ final class AudioController {
     private var footstepLeft: AVAudioPCMBuffer?
     private var footstepRight: AVAudioPCMBuffer?
 
-    /// 回頭のフィードバック。開始のワンショットと、回っている間の持続音。
-    private let rotationStartPlayer = AVAudioPlayerNode()
+    /// 回頭のフィードバック。回っている間だけ鳴る持続音。
+    ///
+    /// - Note: かつては開始の合図に Zippo のワンショットを鳴らしていたが、その音は焚き火の着火へ移した。
+    ///   回頭の伝え方自体を作り直す予定なので、いまは持続音だけが残っている。
     private let rotationBedPlayer = AVAudioPlayerNode()
-    private var rotationStartBuffer: AVAudioPCMBuffer?
     private var rotationBedBuffer: AVAudioPCMBuffer?
     private var rotationBedVolume: Float = 0
     private var rotationBedTarget: Float = 0
@@ -105,7 +106,6 @@ final class AudioController {
             for player in footstepPlayers where !player.isPlaying {
                 player.play()
             }
-            if !rotationStartPlayer.isPlaying { rotationStartPlayer.play() }
             if !fireIgnitePlayer.isPlaying { fireIgnitePlayer.play() }
             lastMessage = nil
         } catch {
@@ -118,7 +118,7 @@ final class AudioController {
         rotationBedTarget = 0
         rotationBedVolume = 0
         for player in beaconPlayers + footstepPlayers
-            + [rotationStartPlayer, rotationBedPlayer, fireIgnitePlayer, fireBedPlayer] {
+            + [rotationBedPlayer, fireIgnitePlayer, fireBedPlayer] {
             player.stop()
         }
         engine.pause()
@@ -139,7 +139,7 @@ final class AudioController {
 
     private func teardownGraph() {
         let all = beaconPlayers + footstepPlayers
-            + [rotationStartPlayer, rotationBedPlayer, fireIgnitePlayer, fireBedPlayer]
+            + [rotationBedPlayer, fireIgnitePlayer, fireBedPlayer]
         for player in all {
             player.stop()
             engine.detach(player)
@@ -150,7 +150,6 @@ final class AudioController {
         footstepPlayers = []
         footstepLeft = nil
         footstepRight = nil
-        rotationStartBuffer = nil
         rotationBedBuffer = nil
         rotationBedVolume = 0
         rotationBedTarget = 0
@@ -198,11 +197,8 @@ final class AudioController {
         }
 
         // 回頭のフィードバックも空間音として鳴らす（回っているのが分かる要はここ）。
-        rotationStartBuffer = loadBuffer(named: "RotateStart")
         rotationBedBuffer = loadBuffer(named: "RotateBed")
-        attachSpatial(rotationStartPlayer, format: monoFormat)
         attachSpatial(rotationBedPlayer, format: monoFormat)
-        rotationStartPlayer.volume = Tuning.Rotation.startLevel
         rotationBedPlayer.volume = 0
 
         // 焚き火もワールドに置く音なので空間音として繋ぐ。
@@ -278,7 +274,7 @@ final class AudioController {
                          Double(Tuning.Audio.Space.reverbBlendOpen), t)
         if !(abs(blend - lastReverbBlend) < 0.01) {
             for player in beaconPlayers
-                + [rotationStartPlayer, rotationBedPlayer, fireIgnitePlayer, fireBedPlayer] {
+                + [rotationBedPlayer, fireIgnitePlayer, fireBedPlayer] {
                 player.reverbBlend = Float(blend)
             }
             lastReverbBlend = blend
@@ -382,13 +378,8 @@ final class AudioController {
     func beginRotationCue(x: Double, z: Double) {
         guard isRunning, Tuning.Rotation.enabled else { return }
         let position = AVAudio3DPoint(x: Float(x), y: Float(Tuning.Rotation.height), z: Float(-z))
-        rotationStartPlayer.position = position
         rotationBedPlayer.position = position
 
-        if let buffer = rotationStartBuffer {
-            rotationStartPlayer.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
-            if !rotationStartPlayer.isPlaying { rotationStartPlayer.play() }
-        }
         if let buffer = rotationBedBuffer, !rotationBedPlayer.isPlaying {
             rotationBedPlayer.scheduleBuffer(buffer, at: nil, options: [.loops], completionHandler: nil)
             rotationBedPlayer.volume = rotationBedVolume

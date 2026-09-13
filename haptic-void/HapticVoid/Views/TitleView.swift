@@ -32,10 +32,10 @@ struct TitleView: View {
             VStack(alignment: .leading, spacing: 10) {
                 instruction("両手の親指が、あなたの両足です。")
                 instruction("交互に下へ払うと、一歩ずつ進みます。")
-                instruction("片方の親指を止めると、カチッと鳴って舵に変わります。")
+                instruction("片方の親指を止めると、舵に変わります。")
                 instruction("そのまま親指を動かすと、動かした角度だけ向きが変わります。")
                 instruction("指を離せば、また歩けます。")
-                instruction("指1本で円を描くと、そこに火が点きます。もう一度描くと消えます。")
+                instruction("指1本で円を描くと、カチッと鳴って火が点きます。もう一度描くと消えます。")
                 if Tuning.Audio.Space.beaconsEnabled {
                     instruction("遠くで鳴っている音が、方角の手がかりです。")
                 }
