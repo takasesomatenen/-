@@ -36,6 +36,16 @@ final class AudioController {
     private var rotationBedVolume: Float = 0
     private var rotationBedTarget: Float = 0
 
+    /// 焚き火。着火のワンショットと、燃え続けるループ。
+    private let fireIgnitePlayer = AVAudioPlayerNode()
+    private let fireBedPlayer = AVAudioPlayerNode()
+    private var fireIgniteBuffer: AVAudioPCMBuffer?
+    private var fireBedBuffer: AVAudioPCMBuffer?
+    private var fireBedVolume: Float = 0
+    private var fireBedTarget: Float = 0
+    /// 着火音のあと、パチパチを立ち上げるまでの残り時間。
+    private var fireBedDelay: Double = 0
+
     /// 残響の現在値（無駄な再設定を避けるため）。
     private var lastReverbLevel: Double = .nan
     private var lastReverbBlend: Double = .nan
@@ -96,6 +106,7 @@ final class AudioController {
                 player.play()
             }
             if !rotationStartPlayer.isPlaying { rotationStartPlayer.play() }
+            if !fireIgnitePlayer.isPlaying { fireIgnitePlayer.play() }
             lastMessage = nil
         } catch {
             lastMessage = "audio engine の起動に失敗: \(error.localizedDescription)"
@@ -106,7 +117,8 @@ final class AudioController {
         guard isRunning else { return }
         rotationBedTarget = 0
         rotationBedVolume = 0
-        for player in beaconPlayers + footstepPlayers + [rotationStartPlayer, rotationBedPlayer] {
+        for player in beaconPlayers + footstepPlayers
+            + [rotationStartPlayer, rotationBedPlayer, fireIgnitePlayer, fireBedPlayer] {
             player.stop()
         }
         engine.pause()
@@ -126,7 +138,8 @@ final class AudioController {
     }
 
     private func teardownGraph() {
-        let all = beaconPlayers + footstepPlayers + [rotationStartPlayer, rotationBedPlayer]
+        let all = beaconPlayers + footstepPlayers
+            + [rotationStartPlayer, rotationBedPlayer, fireIgnitePlayer, fireBedPlayer]
         for player in all {
             player.stop()
             engine.detach(player)
@@ -141,6 +154,11 @@ final class AudioController {
         rotationBedBuffer = nil
         rotationBedVolume = 0
         rotationBedTarget = 0
+        fireIgniteBuffer = nil
+        fireBedBuffer = nil
+        fireBedVolume = 0
+        fireBedTarget = 0
+        fireBedDelay = 0
         lastReverbLevel = .nan
         lastReverbBlend = .nan
         currentPresetBand = -1
@@ -186,6 +204,14 @@ final class AudioController {
         attachSpatial(rotationBedPlayer, format: monoFormat)
         rotationStartPlayer.volume = Tuning.Rotation.startLevel
         rotationBedPlayer.volume = 0
+
+        // 焚き火もワールドに置く音なので空間音として繋ぐ。
+        fireIgniteBuffer = loadBuffer(named: "FireIgnite")
+        fireBedBuffer = loadBuffer(named: "FireBed")
+        attachSpatial(fireIgnitePlayer, format: monoFormat)
+        attachSpatial(fireBedPlayer, format: monoFormat)
+        fireIgnitePlayer.volume = Tuning.Fire.igniteLevel
+        fireBedPlayer.volume = 0
 
         footstepLeft = loadBuffer(named: "Footstep_L")
         footstepRight = loadBuffer(named: "Footstep_R")
@@ -251,7 +277,8 @@ final class AudioController {
         let blend = lerp(Double(Tuning.Audio.Space.reverbBlendTight),
                          Double(Tuning.Audio.Space.reverbBlendOpen), t)
         if !(abs(blend - lastReverbBlend) < 0.01) {
-            for player in beaconPlayers + [rotationStartPlayer, rotationBedPlayer] {
+            for player in beaconPlayers
+                + [rotationStartPlayer, rotationBedPlayer, fireIgnitePlayer, fireBedPlayer] {
                 player.reverbBlend = Float(blend)
             }
             lastReverbBlend = blend
@@ -375,9 +402,59 @@ final class AudioController {
         rotationBedTarget = 0
     }
 
+    // MARK: - 焚き火
+
+    /// 火を点ける。「ぼっ」と鳴らしてから、少し遅れてパチパチを立ち上げる。
+    /// 位置はワールド座標に固定するので、歩いて離れれば遠ざかり、背を向ければ後ろで鳴る。
+    func igniteFire(x: Double, z: Double) {
+        guard isRunning, Tuning.Fire.enabled else { return }
+        let position = AVAudio3DPoint(x: Float(x), y: Float(Tuning.Fire.height), z: Float(-z))
+        fireIgnitePlayer.position = position
+        fireBedPlayer.position = position
+
+        if let buffer = fireIgniteBuffer {
+            fireIgnitePlayer.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+            if !fireIgnitePlayer.isPlaying { fireIgnitePlayer.play() }
+        }
+        if let buffer = fireBedBuffer, !fireBedPlayer.isPlaying {
+            fireBedPlayer.scheduleBuffer(buffer, at: nil, options: [.loops], completionHandler: nil)
+            fireBedPlayer.volume = 0
+            fireBedPlayer.play()
+        }
+        fireBedVolume = 0
+        fireBedDelay = Tuning.Fire.bedDelay
+        fireBedTarget = 0
+    }
+
+    /// 火を消す。
+    func extinguishFire() {
+        fireBedDelay = 0
+        fireBedTarget = 0
+    }
+
     /// 持続音の出入りを毎フレーム進める。
     func updateFades(dt: Double) {
         guard isGraphBuilt else { return }
+
+        // 着火音が鳴りきる頃にパチパチを立ち上げる。
+        if fireBedDelay > 0 {
+            fireBedDelay -= dt
+            if fireBedDelay <= 0 {
+                fireBedDelay = 0
+                fireBedTarget = Tuning.Fire.bedLevel
+            }
+        }
+        let fireRising = fireBedTarget > fireBedVolume
+        fireBedVolume = Float(smoothed(current: Double(fireBedVolume),
+                                       target: Double(fireBedTarget),
+                                       tau: fireRising ? Tuning.Fire.fadeInTime : Tuning.Fire.fadeOutTime,
+                                       dt: dt))
+        fireBedPlayer.volume = fireBedVolume
+        if fireBedTarget == 0, fireBedVolume < 0.004, fireBedPlayer.isPlaying {
+            fireBedPlayer.stop()
+            fireBedVolume = 0
+        }
+
         let rising = rotationBedTarget > rotationBedVolume
         let tau = rising ? Tuning.Rotation.fadeInTime : Tuning.Rotation.fadeOutTime
         rotationBedVolume = Float(smoothed(current: Double(rotationBedVolume),

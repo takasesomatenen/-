@@ -30,11 +30,15 @@ struct DebugOverlay: View {
                                  engine.debug.beaconBearingDegrees,
                                  engine.debug.beaconDistance))
             row("space", String(format: "r %.1fm", engine.debug.spaceRadius))
+            row("fire", engine.debug.fireIsLit
+                ? String(format: "lit  ○%.0f°", engine.debug.circleTurnedDegrees)
+                : String(format: "off  ○%.0f°", engine.debug.circleTurnedDegrees))
 
             // 実際に回れていたのか、まっすぐ歩けていたのかを目で確かめるための小さな地図。
             WalkMap(cave: engine.cave,
                     trail: engine.trail,
                     beacons: engine.beaconPositions,
+                    fire: engine.firePosition,
                     position: CGPoint(x: engine.debug.positionX, y: engine.debug.positionZ),
                     headingDegrees: engine.debug.headingDegrees)
                 .frame(height: 165)
@@ -100,6 +104,8 @@ private struct WalkMap: View {
     let cave: CaveSpace
     let trail: [CGPoint]
     let beacons: [CGPoint]
+    /// 焚き火の位置。消えているときは nil。
+    let fire: CGPoint?
     /// 現在地（x = 東, y = 北。メートル）
     let position: CGPoint
     let headingDegrees: Double
@@ -111,7 +117,7 @@ private struct WalkMap: View {
 
     var body: some View {
         Canvas { context, size in
-            let points = trail + [position] + beacons
+            let points = trail + [position] + beacons + (fire.map { [$0] } ?? [])
 
             let minX = points.map(\.x).min() ?? 0
             let maxX = points.map(\.x).max() ?? 0
@@ -171,6 +177,14 @@ private struct WalkMap: View {
                 let r: Double = 3
                 let circle = Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2))
                 context.stroke(circle, with: .color(.white.opacity(0.45)), lineWidth: 1)
+            }
+
+            // 焚き火
+            if let fire {
+                let p = project(fire)
+                let r: Double = 4
+                let circle = Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2))
+                context.fill(circle, with: .color(.orange.opacity(0.75)))
             }
 
             // 軌跡

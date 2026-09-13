@@ -14,6 +14,8 @@ import SwiftUI
 ///   モードの間は前進しないので、回すために親指を下げても歩き出さない。
 ///   指を離すと歩行に戻る。
 ///   歩いている間は肩のラインが傾いても向きは一切変わらないので、ただ歩けばまっすぐ進む。
+/// - **焚き火**: 指1本で円を描くと火が点き、もう一度描くと消える。
+///   火はワールド座標に固定されるので、歩いて離れれば遠ざかり、背を向ければ後ろで鳴る。
 /// - **蛇行**: 目を閉じて歩くと人間はまっすぐ歩けない。これを一歩ごとのランダムウォークとして入れてある。
 @MainActor
 final class WalkEngine: ObservableObject {
@@ -46,6 +48,8 @@ final class WalkEngine: ObservableObject {
         var spaceRadius: Double = 0
         var isRotating: Bool = false
         var turnRateDegrees: Double = 0
+        var fireIsLit: Bool = false
+        var circleTurnedDegrees: Double = 0
     }
 
     // MARK: - 公開状態
@@ -59,6 +63,8 @@ final class WalkEngine: ObservableObject {
     @Published private(set) var cave = CaveSpace()
     /// 基準音の位置（x = 東, y = 北）。デバッグマップの描画用。
     @Published private(set) var beaconPositions: [CGPoint] = []
+    /// 焚き火の位置（x = 東, y = 北）。消えているときは nil。
+    @Published private(set) var firePosition: CGPoint?
     @Published var isDebugVisible: Bool = Tuning.Debug.startVisible
 
     /// Core Haptics が使えるか（シミュレータでは false）。
@@ -114,6 +120,13 @@ final class WalkEngine: ObservableObject {
     private var rightStillTime: Double = 0
     /// 回頭モード。この間は前進せず、肩のラインの回転だけが向きに効く。
     private var isPivoting = false
+
+    /// 円を描くジェスチャ（焚き火の点け消し）。
+    private var circleDetector = CircleGestureDetector()
+    /// 円を描いている最中か。この間はその指で前へ進まない。
+    private var isDrawingCircle = false
+    /// 続けて反応しないための待ち時間。
+    private var fireRetriggerDelay: Double = 0
 
     /// いまいる場所の広さ（メートル）。残響に連動する。
     private var smoothedSpaceRadius: Double = Tuning.Cave.outsideRadius
@@ -194,6 +207,10 @@ final class WalkEngine: ObservableObject {
         leftStillTime = 0
         rightStillTime = 0
         isPivoting = false
+        circleDetector.reset()
+        isDrawingCircle = false
+        fireRetriggerDelay = 0
+        firePosition = nil
         trail = [CGPoint(x: 0, y: 0)]
 
         buildWorld()
@@ -205,6 +222,9 @@ final class WalkEngine: ObservableObject {
 
     func returnToTitle() {
         stopRuntime()
+        firePosition = nil
+        circleDetector.reset()
+        isDrawingCircle = false
         phase = .title
         left = FootState()
         right = FootState()
@@ -291,8 +311,9 @@ final class WalkEngine: ObservableObject {
         sampleFootDeltas()
         updatePivotMode(dt: dt)
         updateHeadingFromShoulderLine(dt: dt)
-        // 回頭モードの間は前進しない。舵を切るために親指を下げても歩き出さないようにするため。
-        let advance = isPivoting ? 0 : consumeStrideInput()
+        updateCircleGesture(dt: dt)
+        // 回頭モードと、円を描いている間は前進しない。
+        let advance = (isPivoting || isDrawingCircle) ? 0 : consumeStrideInput()
 
         // 前進は指の動きと 1:1 で即座に反映する（平滑化すると足の裏の感じが鈍る）。
         if advance > 0 {
@@ -478,6 +499,53 @@ final class WalkEngine: ObservableObject {
         heading += driftVelocity * Tuning.Walk.blindDriftDegreesPerStep * .pi / 180
     }
 
+    // MARK: - 焚き火
+
+    /// 指1本で円を描いたら火を点け／消しする。
+    ///
+    /// 指が2本乗っているときは歩行か回頭なので見ない。
+    /// 円を描き始めたと分かった時点でその指の推進を止める。
+    /// 一周ぶん描き切ってから気づくのでは、その間に歩いてしまうため。
+    private func updateCircleGesture(dt: Double) {
+        if fireRetriggerDelay > 0 { fireRetriggerDelay -= dt }
+
+        guard Tuning.Fire.enabled else {
+            isDrawingCircle = false
+            return
+        }
+
+        // 触れている指がちょうど1本のときだけ見る。
+        let single: CGPoint?
+        switch (left.isDown, right.isDown) {
+        case (true, false): single = left.location
+        case (false, true): single = right.location
+        default: single = nil
+        }
+
+        let completed = circleDetector.update(point: single, dt: dt)
+        isDrawingCircle = circleDetector.isDrawing
+
+        if completed, fireRetriggerDelay <= 0 {
+            fireRetriggerDelay = Tuning.Fire.retriggerDelay
+            isDrawingCircle = false
+            toggleFire()
+        }
+    }
+
+    private func toggleFire() {
+        if firePosition != nil {
+            firePosition = nil
+            audio.extinguishFire()
+            return
+        }
+        // 目の前に置く。リスナーと同じ点に置くと定位が崩れるので必ず少し離す。
+        let x = positionX + sin(heading) * Tuning.Fire.distance
+        let z = positionZ + cos(heading) * Tuning.Fire.distance
+        firePosition = CGPoint(x: x, y: z)
+        audio.igniteFire(x: x, z: z)
+        haptics.playFireIgnition()
+    }
+
     // MARK: - 回頭のフィードバック
 
     /// 表示用の角速度を追従させる。
@@ -521,6 +589,8 @@ final class WalkEngine: ObservableObject {
         snapshot.spaceRadius = smoothedSpaceRadius
         snapshot.isRotating = isPivoting
         snapshot.turnRateDegrees = smoothedTurnRate * 180 / .pi
+        snapshot.fireIsLit = firePosition != nil
+        snapshot.circleTurnedDegrees = circleDetector.turnedDegrees
 
         // いちばん近い基準音との関係を出す。
         if let nearest = nearestBeacon() {

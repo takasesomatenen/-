@@ -117,6 +117,59 @@ enum Tuning {
         static var bedLevel: Float = 0.55
     }
 
+    // MARK: - 焚き火
+
+    /// 指で円を描くと火が点き、もう一度描くと消える。
+    ///
+    /// 火はワールド座標に固定するので、歩いて離れれば遠ざかり、背を向ければ後ろで鳴る。
+    /// 目印としても、戻ってくる場所としても働く。
+    enum Fire {
+        static var enabled: Bool = true
+
+        /// 火を置く距離（メートル）と高さ。目の前に焚き火があるくらいの位置。
+        /// リスナーと同じ点に置くと定位が崩れるので、必ず少し離す。
+        static var distance: Double = 1.7
+        static var height: Double = -0.25
+
+        /// 円とみなす条件。この3つをすべて満たしたときだけ成立する。
+        ///
+        /// 接線の回転だけで判定すると、指を往復させたときに折り返しで180度回るので、
+        /// 2往復で誤検出する。往復は面積を囲まないので `circleMinArea` がそれを弾く。
+        /// `circleClosureDistance` が無いと、曲がりながら遠くへ流れる動きも円になる。
+        static var circleTurnDegrees: Double = 300
+        /// 囲む面積の下限（ポイント²）。半径40ptの円でおよそ5000。
+        static var circleMinArea: Double = 4000
+        /// 描き始めからこの距離（ポイント）以内に戻ってきていること。
+        static var circleClosureDistance: Double = 130
+
+        /// この秒数のあいだに描き切れなければ、積み直す。
+        static var circleWindow: Double = 3.0
+        /// 軌跡の点を打つ最小間隔（ポイント）。これ未満の動きは指の震えとみなす。
+        static var circleSampleSpacing: Double = 6
+        /// 指が止まってから、描くのをやめたとみなすまで（秒）。
+        static var circleIdleTimeout: Double = 0.5
+
+        /// 円をこれだけ描き進んだら、その指は「描いている」とみなして前進に使わない（度）。
+        /// 一周ぶん描いてから気づくのでは、その間に歩いてしまう。
+        static var drawingSuppressDegrees: Double = 130
+
+        /// 誤って続けて反応しないための待ち時間（秒）。
+        static var retriggerDelay: Double = 1.0
+
+        /// 着火音のあと、パチパチを立ち上げるまでの間（秒）。
+        static var bedDelay: Double = 0.35
+        static var fadeInTime: Double = 0.9
+        static var fadeOutTime: Double = 1.4
+
+        static var igniteLevel: Float = 0.85
+        static var bedLevel: Float = 0.7
+
+        /// 着火の触覚（ぼっ、と息が入る感じ）。
+        static var hapticIntensity: Double = 0.75
+        static var hapticSharpness: Double = 0.12
+        static var hapticDuration: Double = 0.55
+    }
+
     // MARK: - 触覚エンジン
 
     enum Haptics {

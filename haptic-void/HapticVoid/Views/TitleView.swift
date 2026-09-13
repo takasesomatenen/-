@@ -35,6 +35,7 @@ struct TitleView: View {
                 instruction("片方の親指を止めると、カチッと鳴って舵に変わります。")
                 instruction("そのまま親指を動かすと、動かした角度だけ向きが変わります。")
                 instruction("指を離せば、また歩けます。")
+                instruction("指1本で円を描くと、そこに火が点きます。もう一度描くと消えます。")
                 if Tuning.Audio.Space.beaconsEnabled {
                     instruction("遠くで鳴っている音が、方角の手がかりです。")
                 }

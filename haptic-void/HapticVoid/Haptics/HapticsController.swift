@@ -20,6 +20,7 @@ final class HapticsController {
     private var continuousPlayer: CHHapticAdvancedPatternPlayer?
     private var arrivalPlayer: CHHapticPatternPlayer?
     private var footstepPlayer: CHHapticPatternPlayer?
+    private var firePlayer: CHHapticPatternPlayer?
     private var isContinuousRunning = false
 
     /// 直近に送ったパラメータ（無駄な送信を省くため）。
@@ -81,6 +82,7 @@ final class HapticsController {
         stopContinuous()
         arrivalPlayer = nil
         footstepPlayer = nil
+        firePlayer = nil
         engine?.stop(completionHandler: nil)
         engine = nil
         continuousPlayer = nil
@@ -288,6 +290,50 @@ final class HapticsController {
             try player.start(atTime: CHHapticTimeImmediate)
         } catch {
             lastMessage = "足音の再生に失敗: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: - 着火
+
+    /// 火が点いた瞬間の触覚。
+    ///
+    /// 足音のような打撃ではなく、息が吹き込まれて一気に燃え広がる感じにしたいので、
+    /// 鋭さを落とした連続イベントを速く立ち上げてゆっくり落とす。
+    func playFireIgnition() {
+        guard supportsHaptics else { return }
+        prepare()
+        guard let engine = engine else { return }
+
+        let duration = max(Tuning.Fire.hapticDuration, 0.1)
+        do {
+            let event = CHHapticEvent(
+                eventType: .hapticContinuous,
+                parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity,
+                                           value: Float(clamped01(Tuning.Fire.hapticIntensity))),
+                    CHHapticEventParameter(parameterID: .hapticSharpness,
+                                           value: Float(clamped01(Tuning.Fire.hapticSharpness)))
+                ],
+                relativeTime: 0,
+                duration: duration
+            )
+            // 一気に立ち上げて、ゆっくり消す。
+            let envelope = CHHapticParameterCurve(
+                parameterID: .hapticIntensityControl,
+                controlPoints: [
+                    CHHapticParameterCurve.ControlPoint(relativeTime: 0, value: 0.15),
+                    CHHapticParameterCurve.ControlPoint(relativeTime: duration * 0.12, value: 1.0),
+                    CHHapticParameterCurve.ControlPoint(relativeTime: duration, value: 0.0)
+                ],
+                relativeTime: 0
+            )
+            let pattern = try CHHapticPattern(events: [event], parameterCurves: [envelope])
+            let player = try engine.makePlayer(with: pattern)
+            // プレイヤーが解放されると再生も止まるので参照を保持しておく。
+            firePlayer = player
+            try player.start(atTime: CHHapticTimeImmediate)
+        } catch {
+            lastMessage = "着火の触覚に失敗: \(error.localizedDescription)"
         }
     }
 
