@@ -194,6 +194,14 @@ enum Tuning {
         enum Space {
             static var enabled: Bool = true
 
+            /// 方角の基準音を鳴らすか。
+            ///
+            /// いまは false。持続する和音がオルガンのように聴こえて、
+            /// 足音と回頭の音を確かめる邪魔になっていたため一旦止めている。
+            /// 定位の手がかりとしては必要なので、音色を作り直したうえで戻す。
+            /// false の間はビーコン自体を配置しないので、デバッグ地図にも出ない。
+            static var beaconsEnabled: Bool = false
+
             /// 方角の基準音の音色。位置は洞窟の部屋の中から選ばれる。
             static var beacons: [Beacon] = [
                 Beacon(frequency: 294.0, pulseInterval: 1.7),

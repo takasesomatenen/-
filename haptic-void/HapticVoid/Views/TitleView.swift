@@ -35,7 +35,9 @@ struct TitleView: View {
                 instruction("片方の親指を止めると、カチッと鳴って舵に変わります。")
                 instruction("そのまま親指を動かすと、動かした角度だけ向きが変わります。")
                 instruction("指を離せば、また歩けます。")
-                instruction("遠くで鳴っている音が、方角の手がかりです。")
+                if Tuning.Audio.Space.beaconsEnabled {
+                    instruction("遠くで鳴っている音が、方角の手がかりです。")
+                }
                 instruction("まっすぐ歩いているつもりでも、少しずつ逸れます。")
                 instruction("できれば目を閉じて。失敗はありません。")
             }

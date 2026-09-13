@@ -165,7 +165,7 @@ final class AudioController {
         engine.connect(environment, to: engine.mainMixerNode, format: stereoFormat)
         configureEnvironment()
 
-        if Tuning.Audio.Space.enabled {
+        if Tuning.Audio.Space.enabled, Tuning.Audio.Space.beaconsEnabled {
             for beacon in configuredBeacons {
                 guard let buffer = makeBeaconBuffer(beacon, format: monoFormat) else { continue }
                 let player = AVAudioPlayerNode()

@@ -218,7 +218,7 @@ final class WalkEngine: ObservableObject {
         var generator = SystemRandomNumberGenerator()
         cave = CaveSpace.generate(using: &generator)
 
-        let templates = Tuning.Audio.Space.beacons
+        let templates = Tuning.Audio.Space.beaconsEnabled ? Tuning.Audio.Space.beacons : []
         guard !templates.isEmpty else {
             placedBeacons = []
             beaconPositions = []
