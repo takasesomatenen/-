@@ -1,0 +1,44 @@
+# 予備の XcodeGen 定義。
+# HapticVoid.xcodeproj がうまく開けない／作り直したいときに、
+#   brew install xcodegen && cd haptic-void && xcodegen generate
+# で同じ構成のプロジェクトを再生成できる。
+name: HapticVoid
+options:
+  bundleIdPrefix: com.takasesoma
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+targets:
+  HapticVoid:
+    type: application
+    platform: iOS
+    sources:
+      - HapticVoid
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.takasesoma.HapticVoid
+        DEVELOPMENT_TEAM: JV87AUVN94
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: 1
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIStatusBarHidden: YES
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+schemes:
+  HapticVoid:
+    build:
+      targets:
+        HapticVoid: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    archive:
+      config: Release
